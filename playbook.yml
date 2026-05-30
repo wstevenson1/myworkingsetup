@@ -16,13 +16,14 @@
       - bash-completion
       - jq
       - sqlite3
-      - locales
+      # 'locales' is Debian-specific; moved to Debian-only packages below
     debian_extra_packages:
       - python3-apt
       - python3-venv
       - openssh-server
       - postgresql-client
       - postgresql-contrib
+      - locales
     redhat_extra_packages:
       - openssh-server
       - postgresql-server
