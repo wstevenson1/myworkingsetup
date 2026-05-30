@@ -1,0 +1,67 @@
+agg v1.5.0 (https://github.com/asciinema/agg#5592b979):
+    agg
+asciinema v3.2.0 (https://github.com/asciinema/asciinema#202d5c57):
+    asciinema
+cargo-seek v0.1.0:
+    cargo-seek
+coreutils v0.0.30:
+    coreutils
+dua v1.1.0:
+    dua
+duf v0.19.0:
+    duf
+durt v1.0.3:
+    durt
+dusage v0.4.0 (/Users/wstevenson/dusage-0.4.0):
+    dusage
+dutree v0.2.18:
+    dutree
+dwatch v0.10.0 (/Users/wstevenson/dwatch):
+    dwatch
+eza v0.23.4:
+    eza
+ferris-files v0.1.2:
+    ferris-files
+fselect v0.8.12:
+    fselect
+fyrer v0.2.0:
+    fyrer
+httm v0.48.4:
+    httm
+jnv v0.6.1:
+    jnv
+legdur v0.3.4:
+    legdur
+lemmeknow v0.8.0:
+    lemmeknow
+lolcate-rs v0.10.0:
+    lolcate
+macpow v0.1.16:
+    macpow
+mise v2026.4.28:
+    mise
+ouch v0.6.1:
+    ouch
+pik v0.25.0:
+    pik
+pueue v4.0.0:
+    pueue
+    pueued
+replaySh v0.2.2:
+    replay
+scout v2.8.0:
+    scout
+siz v0.4.1-alpha.1 (https://github.com/chrissimpkins/siz.git#49b5ceb5):
+    siz
+spacemap v1.1.2:
+    spacemap
+tealdeer v1.8.1:
+    tldr
+valerter v1.0.0-rc.5 (/Users/wstevenson/.programs/Valerter-1.0.0-rc.5):
+    valerter
+weather-cli v0.4.2:
+    weather-cli
+zb v0.1.2:
+    zb
+zellij v0.41.2:
+    zellij
