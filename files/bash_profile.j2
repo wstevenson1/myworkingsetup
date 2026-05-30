@@ -1,0 +1,9 @@
+# ~/.bash_profile
+# Login shell initialization.
+
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+# Add local bin paths for login shells too.
+export PATH="$HOME/.local/bin:$HOME/.programs:$PATH"

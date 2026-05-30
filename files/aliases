@@ -1,0 +1,33 @@
+# ~/.aliases
+# Common aliases for interactive shells.
+
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias gs='git status'
+alias gd='git diff'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias brewup='brew update && brew upgrade && brew cleanup'
+
+# Git convenience aliases.
+alias gst='git status'
+alias gco='git checkout'
+alias gbr='git branch'
+
+# Local helper shortcuts.
+alias ..='cd ..'
+alias ...='cd ../..'
+
+# Use a simple git-aware prompt when available.
+parse_git_branch() {
+  git branch 2>/dev/null | sed -n '/\* /s///p'
+}
+
+if [ -n "$(command -v git)" ]; then
+  PS1='\u@\h:\w$(git_branch="$(parse_git_branch)"; [ -n "$git_branch" ] && printf " (%s)" "$git_branch")\$ '
+fi
