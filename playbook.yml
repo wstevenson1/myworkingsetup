@@ -72,21 +72,26 @@
         name: "{{ common_packages + (debian_extra_packages if ansible_facts.os_family == 'Debian' else redhat_extra_packages) }}"
         state: present
 
+    - name: Set Homebrew user
+      set_fact:
+        homebrew_user: "{{ ansible_env.SUDO_USER | default(ansible_env.USER) }}"
+
     - name: Set Homebrew prefix
       set_fact:
         homebrew_prefix: >-
-          {{ '/home/linuxbrew/.linuxbrew' if (ansible_env.SUDO_USER is defined and ansible_env.SUDO_USER == 'root') else (('/home/' + ansible_env.SUDO_USER + '/.linuxbrew') if (ansible_env.SUDO_USER is defined) else (ansible_env.HOME + '/.linuxbrew')) }}
+          {{ '/home/linuxbrew/.linuxbrew' if homebrew_user == 'root' else ('/home/' + homebrew_user + '/.linuxbrew') }}
 
     - name: Ensure Homebrew prefix directory exists
       file:
         path: "{{ homebrew_prefix }}"
         state: directory
         mode: '0755'
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ homebrew_user }}"
+        group: "{{ homebrew_user }}"
 
     - name: Install Homebrew on Linux if missing
-      become: no
+      become: yes
+      become_user: "{{ homebrew_user }}"
       shell: |
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null
       args:
@@ -94,9 +99,11 @@
       environment:
         CI: "1"
         NONINTERACTIVE: "1"
-        HOME: "{{ ('/home/' + ansible_env.SUDO_USER) if ansible_env.SUDO_USER is defined else ansible_env.HOME }}"
+        HOME: "/home/{{ homebrew_user }}"
 
     - name: Ensure Homebrew CLI formulae are installed
+      become: yes
+      become_user: "{{ homebrew_user }}"
       shell: "{{ homebrew_prefix }}/bin/brew install $(cat {{ playbook_dir }}/homebrew_formulae.txt)"
       args:
         chdir: "{{ playbook_dir }}"
