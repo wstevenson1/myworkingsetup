@@ -101,6 +101,30 @@
         NONINTERACTIVE: "1"
         HOME: "/home/{{ homebrew_user }}"
 
+    - name: Verify brew exists and is functional
+      become: yes
+      become_user: "{{ homebrew_user }}"
+      shell: "{{ homebrew_prefix }}/bin/brew --version"
+      register: brew_check
+      failed_when: false
+      changed_when: false
+
+    - name: Re-run Homebrew installer if brew missing
+      become: yes
+      become_user: "{{ homebrew_user }}"
+      shell: |
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null
+      args:
+        creates: "{{ homebrew_prefix }}/bin/brew"
+      when: brew_check.rc != 0
+      register: brew_install_again
+      failed_when: false
+
+    - name: Debug Homebrew installer output on failure
+      debug:
+        msg: "Homebrew installer stdout: {{ brew_install_again.stdout }} stderr: {{ brew_install_again.stderr }}"
+      when: brew_install_again is defined and brew_install_again.rc != 0
+
     - name: Ensure Homebrew CLI formulae are installed
       become: yes
       become_user: "{{ homebrew_user }}"
