@@ -74,7 +74,8 @@
 
     - name: Set Homebrew prefix
       set_fact:
-        homebrew_prefix: "{{ '/home/linuxbrew/.linuxbrew' if ansible_user_id == 'root' else ansible_env.HOME + '/.linuxbrew' }}"
+        homebrew_prefix: >-
+          {{ '/home/linuxbrew/.linuxbrew' if (ansible_env.SUDO_USER is defined and ansible_env.SUDO_USER == 'root') else (('/home/' + ansible_env.SUDO_USER + '/.linuxbrew') if (ansible_env.SUDO_USER is defined) else (ansible_env.HOME + '/.linuxbrew')) }}
 
     - name: Ensure Homebrew prefix directory exists
       file:
@@ -85,6 +86,7 @@
         group: "{{ ansible_env.USER }}"
 
     - name: Install Homebrew on Linux if missing
+      become: no
       shell: |
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null
       args:
@@ -92,7 +94,7 @@
       environment:
         CI: "1"
         NONINTERACTIVE: "1"
-        HOME: "{{ ansible_env.HOME }}"
+        HOME: "{{ ('/home/' + ansible_env.SUDO_USER) if ansible_env.SUDO_USER is defined else ansible_env.HOME }}"
 
     - name: Ensure Homebrew CLI formulae are installed
       shell: "{{ homebrew_prefix }}/bin/brew install $(cat {{ playbook_dir }}/homebrew_formulae.txt)"
