@@ -174,6 +174,7 @@
           [ "$n" -ge 25 ] && flush
         done < "{{ playbook_dir }}/homebrew_formulae.txt"
         flush
+        echo "POURED:$(grep -c "^==> Pouring" "$log")"
         [ -n "$failed" ] && echo "FAILED_FORMULAE:$failed"
         exit 0
       args:
@@ -188,12 +189,13 @@
         HOMEBREW_NO_ANALYTICS: "1"
         HOMEBREW_NO_ENV_HINTS: "1"
       register: brew_formulae
-      changed_when: true
+      changed_when: "'POURED:0' not in brew_formulae.stdout"
 
     - name: Report Homebrew formulae that failed to install
       debug:
         msg: >-
-          {{ brew_formulae.stdout | regex_replace('^.*FAILED_FORMULAE:', '') | trim }}
+          {{ brew_formulae.stdout_lines | select('match', '^FAILED_FORMULAE:')
+          | map('regex_replace', '^FAILED_FORMULAE:', '') | join(' ') | trim }}
           (see ~/brew-install.log)
       when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
@@ -269,6 +271,8 @@
         path: "{{ ansible_env.HOME }}/.hist.db"
         state: touch
         mode: '0600'
+        access_time: preserve
+        modification_time: preserve
         owner: "{{ ansible_env.USER }}"
         group: "{{ ansible_env.USER }}"
 
@@ -323,8 +327,11 @@
         enabled: yes
       when: ansible_facts.os_family == 'Debian' or ansible_facts.os_family == 'RedHat'
 
+    # Runs as root, whose PATH is /sbin:/bin:/usr/sbin:/usr/bin and excludes
+    # /usr/local/bin where pip installs it -- so probe the paths explicitly or
+    # this reinstalls ansible on every run.
     - name: Check whether ansible is already installed
-      command: command -v ansible-playbook
+      shell: command -v ansible-playbook || test -x /usr/local/bin/ansible-playbook
       register: ansible_present
       failed_when: false
       changed_when: false
