@@ -201,6 +201,7 @@
       copy:
         src: files/aliases
         dest: "{{ ansible_env.HOME }}/.aliases"
+        backup: yes
         owner: "{{ ansible_env.USER }}"
         group: "{{ ansible_env.USER }}"
         mode: '0644'
@@ -209,6 +210,7 @@
       copy:
         src: files/bash-history-sqlite.sh
         dest: "{{ ansible_env.HOME }}/.bash-history-sqlite.sh"
+        backup: yes
         owner: "{{ ansible_env.USER }}"
         group: "{{ ansible_env.USER }}"
         mode: '0755'
@@ -217,6 +219,7 @@
       template:
         src: files/bashrc.j2
         dest: "{{ ansible_env.HOME }}/.bashrc"
+        backup: yes
         owner: "{{ ansible_env.USER }}"
         group: "{{ ansible_env.USER }}"
         mode: '0644'
@@ -225,6 +228,7 @@
       template:
         src: files/bash_profile.j2
         dest: "{{ ansible_env.HOME }}/.bash_profile"
+        backup: yes
         owner: "{{ ansible_env.USER }}"
         group: "{{ ansible_env.USER }}"
         mode: '0644'
