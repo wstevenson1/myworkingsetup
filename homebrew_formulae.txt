@@ -365,4 +365,5 @@ yazi
 yq
 yt-dlp
 zig
+zoxide
 zsh

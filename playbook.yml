@@ -87,6 +87,19 @@
       set_fact:
         homebrew_prefix: /home/linuxbrew/.linuxbrew
 
+    # The play runs with become: yes, so ansible_env is root's environment and
+    # ansible_env.HOME/.USER resolve to /root and root. Every task that writes
+    # into the invoking user home must use these facts instead.
+    - name: Look up the target user account
+      getent:
+        database: passwd
+        key: "{{ homebrew_user }}"
+
+    - name: Set target user and home
+      set_fact:
+        target_user: "{{ homebrew_user }}"
+        target_home: "{{ getent_passwd[homebrew_user][4] }}"
+
     - name: Ensure Homebrew prefix directory exists
       file:
         path: "{{ homebrew_prefix }}"
@@ -245,63 +258,63 @@
         path: "{{ item }}"
         state: directory
         mode: '0755'
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
       loop:
-        - "{{ ansible_env.HOME }}/.local/bin"
-        - "{{ ansible_env.HOME }}/.programs"
-        - "{{ ansible_env.HOME }}/.logs"
+        - "{{ target_home }}/.local/bin"
+        - "{{ target_home }}/.programs"
+        - "{{ target_home }}/.logs"
 
     - name: Copy bash aliases
       copy:
         src: files/aliases
-        dest: "{{ ansible_env.HOME }}/.aliases"
+        dest: "{{ target_home }}/.aliases"
         backup: yes
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
         mode: '0644'
 
     - name: Copy bash history sqlite helper
       copy:
         src: files/bash-history-sqlite.sh
-        dest: "{{ ansible_env.HOME }}/.bash-history-sqlite.sh"
+        dest: "{{ target_home }}/.bash-history-sqlite.sh"
         backup: yes
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
         mode: '0755'
 
     - name: Deploy portable bashrc
       template:
         src: files/bashrc.j2
-        dest: "{{ ansible_env.HOME }}/.bashrc"
+        dest: "{{ target_home }}/.bashrc"
         backup: yes
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
         mode: '0644'
 
     - name: Deploy portable bash_profile
       template:
         src: files/bash_profile.j2
-        dest: "{{ ansible_env.HOME }}/.bash_profile"
+        dest: "{{ target_home }}/.bash_profile"
         backup: yes
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
         mode: '0644'
 
     - name: Ensure HISTDB exists
       file:
-        path: "{{ ansible_env.HOME }}/.hist.db"
+        path: "{{ target_home }}/.hist.db"
         state: touch
         mode: '0600'
         access_time: preserve
         modification_time: preserve
-        owner: "{{ ansible_env.USER }}"
-        group: "{{ ansible_env.USER }}"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
 
     - name: Ensure bash-preexec helper is installed
       get_url:
         url: https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh
-        dest: "{{ ansible_env.HOME }}/.bash-preexec.sh"
+        dest: "{{ target_home }}/.bash-preexec.sh"
         mode: '0755'
 
     - name: Ensure SSH run directory exists

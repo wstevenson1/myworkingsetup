@@ -35,6 +35,14 @@ shopt -s histappend
 PROMPT_COMMAND='history -a; history -n'
 export HISTIGNORE='&:[ ]*'
 
+# zoxide: `cd` becomes the zoxide jump command (zoxide init --cmd cd).
+# Must be initialized BEFORE bash-preexec. zoxide appends __zoxide_hook to
+# PROMPT_COMMAND, and doing that after bash-preexec has installed its trap
+# breaks the preexec/precmd chain the sqlite history logger depends on.
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init bash --cmd cd)"
+fi
+
 # Optional bash-preexec helper.
 if [ -f "$HOME/.bash-preexec.sh" ]; then
   . "$HOME/.bash-preexec.sh"
