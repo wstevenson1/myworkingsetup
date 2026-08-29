@@ -15,15 +15,30 @@ source ${HOME}/.bash-preexec.sh
 [ -n "$_SQLITE_HIST" ] && return || readonly _SQLITE_HIST=1
 
 # Portable epoch-milliseconds. Resolved once at source time, not per command.
-# BSD date has no %N (a GNU extension), so `date +%s%3N` emits the literal text
-# "3N" on macOS. Every branch below yields a 13-digit millisecond value.
-if command -v gdate >/dev/null 2>&1; then
-    __hist_ms() { gdate +%s%3N; }
-elif command -v perl >/dev/null 2>&1; then
+# Every branch yields a 13-digit millisecond value.
+#
+# Each candidate is probed by running it, not by testing whether the binary
+# exists. BSD date has no %N (a GNU extension) and emits the literal text "3N";
+# and perl is present on minimal CentOS installs WITHOUT Time::HiRes, so
+# `command -v perl` is not evidence the perl branch can run.
+__hist_ms_ok() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "${#1}" -ge 13 ]
+}
+
+if __hist_ms_ok "$(date +%s%3N 2>/dev/null)"; then
+    __hist_ms() { date +%s%3N; }                       # GNU date (Linux)
+elif __hist_ms_ok "$(gdate +%s%3N 2>/dev/null)"; then
+    __hist_ms() { gdate +%s%3N; }                      # coreutils on macOS
+elif __hist_ms_ok "$(perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null)"; then
     __hist_ms() { perl -MTime::HiRes=time -e 'printf "%d", time*1000'; }
 else
-    __hist_ms() { echo "$(date +%s)000"; }
+    __hist_ms() { echo "$(date +%s)000"; }             # seconds, no ms
 fi
+
+unset -f __hist_ms_ok
 
 
 # Let's define some utility functions
