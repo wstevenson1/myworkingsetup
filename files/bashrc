@@ -235,8 +235,8 @@ if command -v fasd >/dev/null 2>&1; then
     unset fasd_cache
     _fasd_bash_hook_cmd_complete v m j o
 fi
-# fasd's posix-alias init defines `d`; drop it so /usr/local/bin/d (recency
-# jumper) is reachable.
+# fasd's posix-alias init defines `d`; drop it so the recentdirs `d`
+# function defined below is reachable.
 unalias d 2>/dev/null
 
 [ -f "$HOME/.logr.bash" ] && source "$HOME/.logr.bash"
@@ -277,29 +277,40 @@ fi
 export PROMPT_COMMAND="history -a${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 command -v fzf >/dev/null 2>&1 && eval "$(fzf --bash)"
 
-# Record directory visits for `d` (recency-based jumper; ~/code/recentdirs).
-# bash has no chpwd hook, so this runs before every prompt and only records
-# when the directory actually changed.
-if [ -x /usr/local/bin/d ]; then
+# recentdirs (~/code/recentdirs). Resolve the binary once: the playbook
+# installs it per-user into ~/.local/bin, while this Mac has it in
+# /usr/local/bin. Cannot use `command -v d` -- d is the function below.
+RECENTDIRS_BIN=""
+for __d in "$HOME/.local/bin/d" /usr/local/bin/d; do
+    if [ -x "$__d" ]; then
+        RECENTDIRS_BIN="$__d"
+        break
+    fi
+done
+unset __d
+
+# Record directory visits for `d`. bash has no chpwd hook, so this runs before
+# every prompt and only records when the directory actually changed.
+if [ -n "$RECENTDIRS_BIN" ]; then
     _recentdirs_record() {
       if [[ "$PWD" != "$_recentdirs_last_pwd" ]]; then
         _recentdirs_last_pwd=$PWD
-        /usr/local/bin/d add "$PWD"
+        "$RECENTDIRS_BIN" add "$PWD"
       fi
     }
     PROMPT_COMMAND="_recentdirs_record${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
-fi
 
-# Bare `d`: fuzzy-pick a recent directory and cd into it (no-op on cancel).
-# With arguments, pass through to the binary (d list, d prune, ...).
-d() {
-  if (($#)); then
-    /usr/local/bin/d "$@"
-  else
-    local dir
-    dir=$(/usr/local/bin/d pick) && cd "$dir"
-  fi
-}
+    # Bare `d`: fuzzy-pick a recent directory and cd into it (no-op on cancel).
+    # With arguments, pass through to the binary (d list, d prune, ...).
+    d() {
+      if (($#)); then
+        "$RECENTDIRS_BIN" "$@"
+      else
+        local dir
+        dir=$("$RECENTDIRS_BIN" pick) && cd "$dir"
+      fi
+    }
+fi
 
 # ~/.hist.db is written live by every session's preexec hook, so it never
 # misses a command the way session-local readline history does (PROMPT_COMMAND

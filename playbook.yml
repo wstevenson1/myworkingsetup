@@ -286,6 +286,21 @@
     # copy, not template: the file contains ${#READLINE_LINE}, and Jinja reads
     # the {# as a comment opener and mangles the result. There are no template
     # variables in it, so there is nothing to render.
+    # recentdirs (~/code/recentdirs), installed as `d`. Static musl binaries
+    # are cross-built on the Mac and vendored here: neither box has a Rust
+    # toolchain, and the source repo has no remote to clone from. Installed
+    # per-user into ~/.local/bin rather than /usr/local/bin so no step of this
+    # play needs root to place it, and so it works on a host where the user
+    # cannot write to /usr/local.
+    - name: Install the recentdirs binary as d
+      copy:
+        src: "files/bin/d-linux-{{ 'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }}"
+        dest: "{{ target_home }}/.local/bin/d"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0755'
+        backup: yes
+
     - name: Deploy portable bashrc
       copy:
         src: files/bashrc
