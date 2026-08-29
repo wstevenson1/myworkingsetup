@@ -351,4 +351,25 @@ command -v mise >/dev/null 2>&1 && eval "$(mise activate bash)"
 # actual env-switching hook runs via PROMPT_COMMAND on every prompt anyway,
 # so it still fires correctly without wrapping cd itself.
 command -v zoxide >/dev/null 2>&1 && cd() { __zoxide_z "$@"; }
+
+# mise also replaces PROMPT_COMMAND wholesale rather than appending to it.
+# That silently drops two things registered earlier:
+#
+#   1. bash-preexec defers its own setup by putting __bp_install into
+#      PROMPT_COMMAND, to run at the first prompt. If mise overwrites
+#      PROMPT_COMMAND before that prompt, __bp_install never runs, the DEBUG
+#      trap is never installed, and the sqlite history logger records nothing
+#      at all -- silently, with preexec_functions still populated so it looks
+#      configured.
+#   2. the recentdirs _recentdirs_record hook.
+#
+# Re-arm both here, after mise has had its say. This is the one safe point to
+# call __bp_install directly: earlier in the file it installs the trap before
+# the things that rewrite PROMPT_COMMAND, and gets clobbered again.
+if [[ -n "${__bp_imported:-}" ]] && [[ "$PROMPT_COMMAND" != *__bp_precmd_invoke_cmd* ]]; then
+    __bp_install
+fi
+if [[ -n "$RECENTDIRS_BIN" ]] && [[ "$PROMPT_COMMAND" != *_recentdirs_record* ]]; then
+    PROMPT_COMMAND="_recentdirs_record${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+fi
 export FZF_DEFAULT_OPTS="--pointer='>' --color=bg+:#262626,bg:-1,fg:-1,fg+:#ffffff,hl:#5f87af,hl+:#5fd7ff,info:#afaf87,prompt:#d7005f,pointer:#ffffff,marker:#87ff00,spinner:#af5fff,header:#87afaf"
