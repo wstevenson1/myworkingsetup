@@ -144,16 +144,33 @@
         log="$HOME/brew-install.log"
         : > "$log"
         failed=""
+        chunk=""
+        n=0
+        # Install in chunks for speed, then retry a failed chunk member by
+        # member so one Linux-unavailable formula does not lose the other 24.
+        # </dev/null is required: brew inherits stdin from the while loop,
+        # which is the formulae file, and drains the remaining lines.
+        flush() {
+          [ -z "$chunk" ] && return 0
+          if ! $brew_bin install $chunk >>"$log" 2>&1 </dev/null; then
+            for f in $chunk; do
+              if ! $brew_bin install "$f" >>"$log" 2>&1 </dev/null; then
+                failed="$failed $f"
+              fi
+            done
+          fi
+          chunk=""
+          n=0
+        }
         while IFS= read -r formula || [ -n "$formula" ]; do
           formula="$(echo "$formula" | tr -d '[:space:]')"
           [ -z "$formula" ] && continue
           case "$formula" in \#*) continue ;; esac
-          # </dev/null is required: brew inherits stdin from the while loop,
-          # which is the formulae file, and drains the remaining lines.
-          if ! "$brew_bin" install "$formula" >>"$log" 2>&1 </dev/null; then
-            failed="$failed $formula"
-          fi
+          chunk="$chunk $formula"
+          n=$((n+1))
+          [ "$n" -ge 25 ] && flush
         done < "{{ playbook_dir }}/homebrew_formulae.txt"
+        flush
         [ -n "$failed" ] && echo "FAILED_FORMULAE:$failed"
         exit 0
       args:
@@ -161,6 +178,12 @@
         executable: /bin/bash
       environment:
         PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
+        # Each brew invocation otherwise fires an analytics HTTP call and may
+        # trigger a git auto-update fetch; both dominate runtime over hundreds
+        # of installs.
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_ANALYTICS: "1"
+        HOMEBREW_NO_ENV_HINTS: "1"
       register: brew_formulae
       changed_when: true
 
