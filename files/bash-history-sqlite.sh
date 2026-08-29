@@ -44,11 +44,23 @@ unset -f __hist_ms_ok
 # Let's define some utility functions
 # TODO figure out how to integrate this with the history builtins
 
+# dbhistory [pattern...] -- all rows, or only those whose command matches.
 dbhistory() {
-    #sqlite3 -separator '#' ${HISTDB} "select command_id, command from command where command like '%${@}%';" | awk -F'#' '/^[0-9]+#/ {printf "%8s    %s\n", $1, substr($0,index($0,FS)+1); next} { print $0; }'
+    local pattern where
+    where=""
+    if [ "$#" -gt 0 ]; then
+        # Double any single quote so the argument cannot terminate the SQL
+        # string literal and inject further statements.
+        pattern=$(printf '%s' "$*" | sed "s/'/''/g")
+        where="where command like '%${pattern}%'"
+    fi
     # -list is required: sqlite3 defaults to 'box' mode when stdout is a TTY,
     # and -separator is silently ignored in that mode.
-    sqlite3 -list -separator '|' ${HISTDB} "select command_id, datetime(started/1000, 'unixepoch', 'localtime') as ran_at, cwd, return, command from command;"
+    sqlite3 -list -separator '|' "${HISTDB}" \
+        "select command_id,
+                datetime(started/1000, 'unixepoch', 'localtime') as ran_at,
+                cwd, return, command
+         from command ${where} order by command_id;"
 }
 
 dbhist() {
@@ -115,8 +127,6 @@ preexec_bash_history_sqlite() {
 		SELECT last_insert_rowid();
 		EOD
 	)"
-
-	echo "$cmd" >> ~/.testlog
 }
 
 precmd_bash_history_sqlite() {
