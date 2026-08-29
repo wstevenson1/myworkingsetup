@@ -1,0 +1,25 @@
+# Formulae present in homebrew_formulae.txt that cannot install on Linux.
+# Without this list each is retried on every run, and every failure costs a
+# brew invocation plus a fallback member-by-member retry of its whole chunk.
+# Reasons captured on CentOS Stream 10 / aarch64, Homebrew 6.0.20.
+
+# no bottle available (macOS-only, or no ARM Linux build)
+clippy
+container
+mactop
+macvim
+mas
+mole
+pinentry-mac
+
+# no longer in homebrew/core
+neofetch
+
+# disabled: does not meet homebrew/core requirements for Python libraries
+six
+
+# refuses to install: conflicting formula already present
+bash-completion
+git-gerrit
+parallel
+poppler

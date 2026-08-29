@@ -149,6 +149,20 @@
         failed=""
         chunk=""
         n=0
+        skipped=0
+        wanted=0
+        # Ask brew once what is already present, rather than invoking it per
+        # formula only to learn it has nothing to do. Leading/trailing spaces
+        # let the membership test below match whole names only.
+        installed=" $($brew_bin list --formula 2>/dev/null | tr "\n" " ") "
+        # Formulae known to be uninstallable here; see homebrew_skip.txt for
+        # the reason against each one.
+        excluded=0
+        skipfile="{{ playbook_dir }}/homebrew_skip.txt"
+        skiplist=" "
+        if [ -r "$skipfile" ]; then
+          skiplist=" $(sed -e "s/#.*//" "$skipfile" | tr "\n" " ") "
+        fi
         # Install in chunks for speed, then retry a failed chunk member by
         # member so one Linux-unavailable formula does not lose the other 24.
         # </dev/null is required: brew inherits stdin from the while loop,
@@ -169,11 +183,19 @@
           formula="$(echo "$formula" | tr -d '[:space:]')"
           [ -z "$formula" ] && continue
           case "$formula" in \#*) continue ;; esac
+          case "$installed" in
+            *" $formula "*) skipped=$((skipped+1)); continue ;;
+          esac
+          case "$skiplist" in
+            *" $formula "*) excluded=$((excluded+1)); continue ;;
+          esac
+          wanted=$((wanted+1))
           chunk="$chunk $formula"
           n=$((n+1))
           [ "$n" -ge 25 ] && flush
         done < "{{ playbook_dir }}/homebrew_formulae.txt"
         flush
+        echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
         echo "POURED:$(grep -c "^==> Pouring" "$log")"
         [ -n "$failed" ] && echo "FAILED_FORMULAE:$failed"
         exit 0
