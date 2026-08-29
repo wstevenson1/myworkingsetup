@@ -17,7 +17,14 @@ esac
 # ==============================================================================
 # Environment
 # ==============================================================================
-export TERM=screen
+# TERM is deliberately NOT set here. It is the terminal emulator's job to
+# announce itself, and tmux/screen override it when they are actually in play.
+# Forcing TERM=screen outside a multiplexer describes the wrong terminfo:
+# cursor save/restore and scroll-region handling differ from a real xterm, so
+# full-screen TUIs (skim, used by `d pick`) restore the cursor to the wrong
+# row and the next prompt is drawn over earlier output.
+# Scope any override to the one program that needs it, as the mutt() wrapper
+# below does.
 export NO_COLOR=true
 export EDITOR=$(command -v vim)
 export INPUTRC="$HOME/.inputrc"
