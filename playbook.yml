@@ -283,9 +283,12 @@
         group: "{{ target_user }}"
         mode: '0755'
 
+    # copy, not template: the file contains ${#READLINE_LINE}, and Jinja reads
+    # the {# as a comment opener and mangles the result. There are no template
+    # variables in it, so there is nothing to render.
     - name: Deploy portable bashrc
-      template:
-        src: files/bashrc.j2
+      copy:
+        src: files/bashrc
         dest: "{{ target_home }}/.bashrc"
         backup: yes
         owner: "{{ target_user }}"

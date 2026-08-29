@@ -1,0 +1,343 @@
+# .bashrc
+# Non-interactive shells (e.g. `ssh host "command"`) don't need any of
+# this — prompt, keybindings, tmux helpers, etc. Bail out early so
+# scripted/automated ssh sessions stay fast and quiet. (The Mac's own
+# interactive-only usage never hits this path, so this guard is scoped
+# to non-darwin rather than changing long-standing Mac behavior.)
+case $- in
+    *i*) ;;
+      *) return ;;
+esac
+
+# Distro-provided system bashrc (terminal titling, checkwinsize, etc.) —
+# only one of these exists per distro.
+[ -f /etc/bashrc ] && . /etc/bashrc
+[ -f /etc/bash.bashrc ] && . /etc/bash.bashrc
+
+# ==============================================================================
+# Environment
+# ==============================================================================
+export TERM=screen
+export NO_COLOR=true
+export EDITOR=$(command -v vim)
+export INPUTRC="$HOME/.inputrc"
+export GPG_TTY=$(tty)
+
+export HISTCONTROL=erasedups
+export HISTFILESIZE=5000000
+export HISTSIZE=500000
+export HISTTIMEFORMAT=''
+shopt -s histappend
+
+export GOPATH=$HOME/.go
+export GOPROXY=direct
+export GOSUMDB=off
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+unset SSH_AGENT_PID
+
+# ==============================================================================
+# PATH
+# ==============================================================================
+export PATH="$PATH:$GOPATH/bin:$HOME/.cargo/bin"
+[ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
+
+# Homebrew / Linuxbrew. brew is not on PATH yet, so probe the known install
+# locations directly -- the Linux installer always uses /home/linuxbrew
+# regardless of the prefix it is asked for. This must run before the
+# `command -v` checks further down (zoxide, fzf, mise, fasd, broot), which
+# otherwise cannot see any brew-installed tool.
+for __brew in /home/linuxbrew/.linuxbrew/bin/brew "$HOME/.linuxbrew/bin/brew" \
+              /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$__brew" ]; then
+    eval "$("$__brew" shellenv)"
+    break
+  fi
+done
+unset __brew
+
+# Distro-provided bash completion (the NVM completion above is separate).
+if [ -f /usr/share/bash-completion/bash_completion ]; then
+  . /usr/share/bash-completion/bash_completion
+elif [ -f /etc/bash_completion ]; then
+  . /etc/bash_completion
+fi
+
+# ==============================================================================
+# Prompt
+# ==============================================================================
+export PS1="[\t][\u@\h:\w]\$ "
+
+prompt() {
+    if [ "$1" = "on" ]; then
+        PS1="[\t][\u@\h:\w]\$ "
+    elif [ "$1" = "off" ]; then
+        PS1="$ "
+    fi
+}
+
+# ==============================================================================
+# Functions
+# ==============================================================================
+bash_history() {
+    echo "$1 $2 $3 $4" >> ~/.bash_history."$(date +%Y%m%d)"
+}
+
+buf() {
+    local f=${1%%.*} e=${1/$f/}
+    cp -v "$1" "$f-$(date +"%Y%m%d_%H%M%S")$e"
+}
+
+checkip() {
+    ipcalc -c "$1" > /tmp/1
+    grep INVALID /tmp/1 > /dev/null && echo "$1 is INVALID" || echo "$1 is VALID"
+}
+
+dir() { ~/.programs/directory_history.sh "$@" && cd "$(cat "$HOME/.cdargsresult")"; }
+
+forloop() { for i in "${@:2}"; do echo "=== $i ==="; "$1" "$i"; done; }
+
+h() {
+    if [ -z "$1" ]; then
+        dbhist | tail -38
+    else
+        sqlite3 "$HISTDB" "select * from command" | perl -F'\|' -lane '{ print $F[2] }' | grep -Ei "$@"
+    fi
+}
+
+hl()  { hostlist -e -s" " "${@:1}"; }
+hls() { hostlist -e -s, "${@:1}"; }
+hlc() { hostlist -e -s: "${@:1}"; }
+hln() { hostlist -e -i "${@:1}"; }
+
+i() { uname -a; }
+
+log() {
+    local tmstamp hostname time_str id prompt_str
+    mkdir -p ~/.logs
+    tmstamp=$(date "+%m%d%Y%H%M%S")
+    hostname=$(hostname)
+    time_str=$(date "+%H:%M:%S")
+    id=$(whoami)
+    prompt_str="[$time_str][$id@$hostname:$PWD]$ $*"
+    ( echo "$prompt_str"; "$@" 2>&1 ) | tee ~/.logs/log.$tmstamp.txt
+    echo
+    echo "Output is in ~/.logs/log.$tmstamp.txt"
+}
+
+mutt() { TERM=vt100 /usr/bin/mutt "$@"; }
+
+n() {
+    /usr/local/bin/nnn "$@"
+    if [ -f "$NNN_TMPFILE" ]; then
+        local nnn_dir
+        nnn_dir="$(cat "$NNN_TMPFILE")"
+        rm -f "$NNN_TMPFILE"
+        if [ -d "$nnn_dir" ]; then
+            builtin cd "$nnn_dir"
+            command -v zoxide >/dev/null 2>&1 && zoxide add "$nnn_dir"
+        fi
+    fi
+}
+
+ping() { command ping "$@" 2>/dev/null | grep -v Unreac; }
+
+sch() { for i in "${@:2}"; do echo "=== $i ==="; scp "$1" "$i:."; done; }
+
+search() { sqlite3 "$HISTDB" "select * from command" | cut -c1-170 | grep -i "$@"; }
+
+sm() { ~/.programs/ssh-multi "$@"; }
+
+ssh() {
+    local timestamp
+    timestamp=$(date +%m-%d-%Y.%H:%M:%S)
+    command ssh "$@" | tee -a ~/.logs/ssh."${1##*@}.$timestamp"
+}
+
+ss() { /usr/local/bin/fab --disable-known-hosts --skip-bad-hosts -a -k -H "$(echo "${@:1}" | hls -)" ss; }
+
+sshloop() { for i in "${@:2}"; do echo "=== $i ==="; ssh "$i" "$1"; done; }
+
+sxh() { for i in "${@:2}"; do echo "=== $i ==="; ssh "$i" "$1"; done; }
+
+y() {
+    local tmp
+    tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+    yazi "$@" --cwd-file="$tmp"
+    if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+        builtin cd -- "$cwd"
+    fi
+    rm -f -- "$tmp"
+}
+
+# tmux mouse — renamed from enable/disable/status/toggle (enable is a bash builtin)
+# Updated to modern tmux API (tmux 2.1+ uses a single 'mouse' option)
+tmux_mouse_enable() {
+    tmux set -g mouse on
+    tmux display 'Mouse: ON'
+}
+
+tmux_mouse_disable() {
+    tmux set -g mouse off
+    tmux display 'Mouse: OFF'
+}
+
+tmux_mouse_status() {
+    local s
+    s=$(tmux show -gv mouse 2>/dev/null)
+    echo "Mouse: ${s^^}"
+    tmux display "Mouse: ${s^^}"
+}
+
+tmux_mouse_toggle() {
+    if [ "$(tmux show -gv mouse 2>/dev/null)" = "off" ]; then
+        tmux_mouse_enable
+    else
+        tmux_mouse_disable
+    fi
+}
+
+# ==============================================================================
+# Aliases
+# ==============================================================================
+[ -f ~/.aliases ] && . ~/.aliases
+
+alias a='fasd -a'
+alias aws='/usr/local/bin/aws'
+alias c='clear'
+alias cfzf="cd \$(fasd -d | perl -lane 'print \$F[-1]' | fzf)"
+alias f='fasd -f'
+alias ff='fasd -sif'
+alias fkill='kill -9 $(ps ax -o pid,comm,ruser,args | fzf --multi --height 40% | awk '\''{print $1}'\'')'
+alias grep='grep --color=auto'
+alias k='kubectl'
+alias locate='lolcate'
+alias pc='$HOME/.programs/check_port.pl $@'
+alias pfzf="find . -type f | fzf --preview 'cat {}'"
+alias s='fasd -si'
+alias updatedb='sudo lolcate --update'
+alias vfzf="vi \$(find . -type f | fzf --height 60% -m)"
+alias z='fasd_cd -d'
+alias zz='fasd_cd -d -i'
+
+# ==============================================================================
+# Tool Initialization
+# ==============================================================================
+if command -v fasd >/dev/null 2>&1; then
+    fasd_cache="$HOME/.fasd-init-bash"
+    if [ "$(command -v fasd)" -nt "$fasd_cache" -o ! -s "$fasd_cache" ]; then
+        fasd --init posix-alias bash-hook bash-ccomp bash-ccomp-install >| "$fasd_cache"
+    fi
+    source "$fasd_cache"
+    unset fasd_cache
+    _fasd_bash_hook_cmd_complete v m j o
+fi
+# fasd's posix-alias init defines `d`; drop it so /usr/local/bin/d (recency
+# jumper) is reachable.
+unalias d 2>/dev/null
+
+[ -f "$HOME/.logr.bash" ] && source "$HOME/.logr.bash"
+[ -f "$HOME/.dirtrack/dirtrack_init.sh" ] && source "$HOME/.dirtrack/dirtrack_init.sh"
+
+HISTDB="${HOME}/.hist.db"
+if [[ -r "${BASH_SOURCE[0]%/*}/bash-history-sqlite.sh" ]]; then
+    source "${BASH_SOURCE[0]%/*}/bash-history-sqlite.sh"
+else
+    source "${HOME}/.bash-history-sqlite.sh"
+fi
+
+if command -v pyenv > /dev/null 2>&1; then
+    eval "$(pyenv init -)"
+fi
+
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+[ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+
+[[ -s "$HOME/.local/share/marker/marker.sh" ]] && source "$HOME/.local/share/marker/marker.sh"
+[ -f "$HOME/.tbmk/.bash" ] && source "$HOME/.tbmk/.bash"
+[ -f "$HOME/.config/broot/launcher/bash/br" ] && source "$HOME/.config/broot/launcher/bash/br"
+command -v zxcv >/dev/null 2>&1 && source <(zxcv completion bash)
+export RECENT_DIRS_FILE=~/.local/share/mytool/dirs
+
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init bash --cmd cd)"
+fi
+
+[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh
+
+# ==============================================================================
+# Secrets
+# ==============================================================================
+[ -f ~/.secrets ] && source ~/.secrets
+
+[ -f "$HOME/.config/fzf/fcd.sh" ] && source "$HOME/.config/fzf/fcd.sh"
+export PROMPT_COMMAND="history -a${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+command -v fzf >/dev/null 2>&1 && eval "$(fzf --bash)"
+
+# Record directory visits for `d` (recency-based jumper; ~/code/recentdirs).
+# bash has no chpwd hook, so this runs before every prompt and only records
+# when the directory actually changed.
+if [ -x /usr/local/bin/d ]; then
+    _recentdirs_record() {
+      if [[ "$PWD" != "$_recentdirs_last_pwd" ]]; then
+        _recentdirs_last_pwd=$PWD
+        /usr/local/bin/d add "$PWD"
+      fi
+    }
+    PROMPT_COMMAND="_recentdirs_record${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+fi
+
+# Bare `d`: fuzzy-pick a recent directory and cd into it (no-op on cancel).
+# With arguments, pass through to the binary (d list, d prune, ...).
+d() {
+  if (($#)); then
+    /usr/local/bin/d "$@"
+  else
+    local dir
+    dir=$(/usr/local/bin/d pick) && cd "$dir"
+  fi
+}
+
+# ~/.hist.db is written live by every session's preexec hook, so it never
+# misses a command the way session-local readline history does (PROMPT_COMMAND
+# only does `history -a`, never reloads what other panes wrote). Ctrl-r
+# searches the full db; Esc-Ctrl-r keeps fzf's session-local search, since
+# `eval "$(fzf --bash)"` above claims Ctrl-r for that by default.
+__fzf_dbhistory__() {
+    local selected
+
+    selected=$(sqlite3 -separator $'\t' "$HISTDB" \
+        "SELECT command_id, command FROM command ORDER BY command_id DESC;" \
+        | awk -F'\t' '!seen[$2]++' \
+        | fzf --scheme=history \
+              --delimiter=$'\t' --with-nth=2 \
+        | cut -f2-)
+    if [[ -n "$selected" ]]; then
+        READLINE_LINE="$selected"
+        READLINE_POINT=${#READLINE_LINE}
+    fi
+}
+bind -x '"\C-r": __fzf_dbhistory__'
+bind -x '"\e\C-r": __fzf_history__'
+
+_favs_widget() {
+  local selected
+  selected=$(favs 2>/dev/null)
+  if [[ -n "$selected" ]]; then
+    READLINE_LINE="$selected"
+    READLINE_POINT=${#READLINE_LINE}
+  fi
+}
+bind -x '"\C-f": _favs_widget'
+
+command -v mise >/dev/null 2>&1 && eval "$(mise activate bash)"
+
+# mise's activation above redefines cd with its own plain builtin-only
+# wrapper, clobbering zoxide's smart cd from earlier. Restore it: mise's
+# actual env-switching hook runs via PROMPT_COMMAND on every prompt anyway,
+# so it still fires correctly without wrapping cd itself.
+command -v zoxide >/dev/null 2>&1 && cd() { __zoxide_z "$@"; }
+export FZF_DEFAULT_OPTS="--pointer='>' --color=bg+:#262626,bg:-1,fg:-1,fg+:#ffffff,hl:#5f87af,hl+:#5fd7ff,info:#afaf87,prompt:#d7005f,pointer:#ffffff,marker:#87ff00,spinner:#af5fff,header:#87afaf"
