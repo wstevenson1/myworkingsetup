@@ -25,6 +25,27 @@ esac
 # row and the next prompt is drawn over earlier output.
 # Scope any override to the one program that needs it, as the mutt() wrapper
 # below does.
+#
+# A session can still arrive with no TERM at all -- ssh without a pty, a
+# container exec, or a parent shell that unset it. Full-screen TUIs then fail
+# outright: skim, behind `d pick`, panics with TermUnset rather than degrading.
+# Supply a value only in that case, so a real TERM is never overridden.
+# `dumb` is left alone: it is a deliberate signal (emacs shell sets it) that
+# the caller does not want cursor addressing.
+# bash substitutes TERM=dumb when TERM is absent, but an explicitly empty TERM
+# stays empty -- both reach here, and neither can drive a TUI. Treat dumb as
+# deliberate only when something actually asked for it: emacs sets INSIDE_EMACS
+# and genuinely wants no cursor addressing.
+case "${TERM:-}" in
+    ''|unknown)
+        export TERM=xterm-256color
+        ;;
+    dumb)
+        if [ -t 1 ] && [ -z "${INSIDE_EMACS:-}" ]; then
+            export TERM=xterm-256color
+        fi
+        ;;
+esac
 export NO_COLOR=true
 export EDITOR=$(command -v vim)
 export INPUTRC="$HOME/.inputrc"
