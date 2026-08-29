@@ -4,14 +4,16 @@
 # Local paths.
 export PATH="$HOME/.local/bin:$HOME/.programs:$PATH"
 
-# Linuxbrew / Homebrew paths.
-if [ -d "$HOME/.linuxbrew/bin" ]; then
-  export PATH="$HOME/.linuxbrew/bin:$HOME/.linuxbrew/sbin:$PATH"
-fi
-
-if command -v brew >/dev/null 2>&1; then
-  eval "$(brew shellenv)"
-fi
+# Linuxbrew / Homebrew. brew is not on PATH yet, so probe the known install
+# locations directly -- the Linux installer always uses /home/linuxbrew.
+for __brew in /home/linuxbrew/.linuxbrew/bin/brew "$HOME/.linuxbrew/bin/brew" \
+              /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$__brew" ]; then
+    eval "$("$__brew" shellenv)"
+    break
+  fi
+done
+unset __brew
 
 # Bash completion.
 if [ -f /usr/share/bash-completion/bash_completion ]; then
@@ -36,4 +38,12 @@ export HISTIGNORE='&:[ ]*'
 # Optional bash-preexec helper.
 if [ -f "$HOME/.bash-preexec.sh" ]; then
   . "$HOME/.bash-preexec.sh"
+fi
+
+# Command history to SQLite (~/.hist.db). Must be sourced last: it installs
+# preexec/precmd hooks, and anything that rewrites PROMPT_COMMAND afterwards
+# clobbers them.
+HISTDB="${HOME}/.hist.db"
+if [ -r "${HOME}/.bash-history-sqlite.sh" ]; then
+  . "${HOME}/.bash-history-sqlite.sh"
 fi

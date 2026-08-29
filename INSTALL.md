@@ -33,7 +33,15 @@ This will:
 If you already have Ansible available locally, run:
 
 ```bash
-ansible-playbook -i inventory/hosts playbook.yml
+ansible-playbook -i inventory/hosts playbook.yml -K
+```
+
+`-K` prompts once for the sudo password required by `become: yes`. If sudo on
+the target stalls (common on fresh VMs and WSL where the hostname is missing
+from `/etc/hosts`), add it:
+
+```bash
+echo "127.0.1.1 $(hostname)" | sudo tee -a /etc/hosts
 ```
 
 ## SSH access

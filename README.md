@@ -28,8 +28,12 @@ If you already have Ansible installed on the target machine:
 
 ```bash
 cd /path/to/myworkingsetup
-ansible-playbook -i inventory/hosts playbook.yml
+ansible-playbook -i inventory/hosts playbook.yml -K
 ```
+
+The playbook uses `become: yes`, so `-K` prompts once for your sudo password.
+Omit it only if the account has passwordless sudo; without it the run fails at
+`Gathering Facts` with "Timed out waiting for become success".
 
 ## Notes
 

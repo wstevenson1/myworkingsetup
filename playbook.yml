@@ -76,10 +76,13 @@
       set_fact:
         homebrew_user: "{{ ansible_env.SUDO_USER | default(ansible_env.USER) }}"
 
+    # Homebrew on Linux installs to /home/linuxbrew/.linuxbrew no matter what
+    # prefix it is asked for, and only ships bottles for that path. Pointing
+    # anywhere else leaves brew unfindable and every formula building from
+    # source.
     - name: Set Homebrew prefix
       set_fact:
-        homebrew_prefix: >-
-          {{ '/home/linuxbrew/.linuxbrew' if homebrew_user == 'root' else ('/home/' + homebrew_user + '/.linuxbrew') }}
+        homebrew_prefix: /home/linuxbrew/.linuxbrew
 
     - name: Ensure Homebrew prefix directory exists
       file:
@@ -125,15 +128,43 @@
         msg: "Homebrew installer stdout: {{ brew_install_again.stdout }} stderr: {{ brew_install_again.stderr }}"
       when: brew_install_again is defined and brew_install_again.rc != 0
 
+    # Installed one at a time: `brew install a b c` aborts the entire batch if
+    # any single formula is unavailable on Linux, and this list was captured on
+    # macOS. Looping in the remote shell rather than with Ansible's `loop`
+    # avoids 769 round trips. Full output goes to ~/brew-install.log; only the
+    # names that failed come back in stdout.
     - name: Ensure Homebrew CLI formulae are installed
       become: yes
       become_user: "{{ homebrew_user }}"
-      shell: "{{ homebrew_prefix }}/bin/brew install $(cat {{ playbook_dir }}/homebrew_formulae.txt)"
+      shell: |
+        brew_bin="{{ homebrew_prefix }}/bin/brew"
+        log="$HOME/brew-install.log"
+        : > "$log"
+        failed=""
+        while IFS= read -r formula || [ -n "$formula" ]; do
+          formula="$(echo "$formula" | tr -d '[:space:]')"
+          [ -z "$formula" ] && continue
+          case "$formula" in \#*) continue ;; esac
+          if ! "$brew_bin" install "$formula" >>"$log" 2>&1; then
+            failed="$failed $formula"
+          fi
+        done < "{{ playbook_dir }}/homebrew_formulae.txt"
+        [ -n "$failed" ] && echo "FAILED_FORMULAE:$failed"
+        exit 0
       args:
         chdir: "{{ playbook_dir }}"
+        executable: /bin/bash
       environment:
         PATH: "{{ homebrew_prefix }}/bin:{{ ansible_env.PATH }}"
-      when: homebrew_prefix is defined
+      register: brew_formulae
+      changed_when: true
+
+    - name: Report Homebrew formulae that failed to install
+      debug:
+        msg: >-
+          {{ brew_formulae.stdout | regex_replace('^.*FAILED_FORMULAE:', '') | trim }}
+          (see ~/brew-install.log)
+      when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
     - name: Try install PostgreSQL 14 on Debian/Ubuntu
       apt:
