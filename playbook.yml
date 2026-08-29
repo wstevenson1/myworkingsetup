@@ -16,6 +16,9 @@
       - bash-completion
       - jq
       - sqlite3
+      # ansible's pip module imports 'packaging' as root; a pip --user
+      # install of ansible puts it in the user site-packages only.
+      - python3-packaging
       # 'locales' is Debian-specific; moved to Debian-only packages below
     debian_extra_packages:
       - python3-apt
@@ -320,11 +323,21 @@
         enabled: yes
       when: ansible_facts.os_family == 'Debian' or ansible_facts.os_family == 'RedHat'
 
+    - name: Check whether ansible is already installed
+      command: command -v ansible-playbook
+      register: ansible_present
+      failed_when: false
+      changed_when: false
+
+    # The task below was named "if ansible is missing" but only gated on
+    # os_family, so it ran on every play even when ansible was already present.
     - name: Install ansible package via pip if ansible is missing
       pip:
         name: ansible
         executable: /usr/bin/pip3
-      when: ansible_facts.os_family == 'Debian' or ansible_facts.os_family == 'RedHat'
+      when:
+        - ansible_facts.os_family in ['Debian', 'RedHat']
+        - ansible_present.rc != 0
 
   handlers:
     - name: restart sshd
