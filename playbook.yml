@@ -148,7 +148,9 @@
           formula="$(echo "$formula" | tr -d '[:space:]')"
           [ -z "$formula" ] && continue
           case "$formula" in \#*) continue ;; esac
-          if ! "$brew_bin" install "$formula" >>"$log" 2>&1; then
+          # </dev/null is required: brew inherits stdin from the while loop,
+          # which is the formulae file, and drains the remaining lines.
+          if ! "$brew_bin" install "$formula" >>"$log" 2>&1 </dev/null; then
             failed="$failed $formula"
           fi
         done < "{{ playbook_dir }}/homebrew_formulae.txt"
@@ -278,6 +280,15 @@
         name: "{{ 'ssh' if ansible_facts.os_family == 'Debian' else 'sshd' }}"
         state: started
         enabled: yes
+
+    # RHEL ships postgresql-server with an uninitialized data dir; the unit
+    # refuses to start until postgresql-setup --initdb has run. Debian's
+    # packaging creates a cluster on install, so this is RedHat-only.
+    - name: Initialize PostgreSQL data directory on RedHat
+      command: /usr/bin/postgresql-setup --initdb
+      args:
+        creates: /var/lib/pgsql/data/PG_VERSION
+      when: ansible_facts.os_family == 'RedHat'
 
     - name: Start PostgreSQL service
       service:
