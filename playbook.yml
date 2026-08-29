@@ -240,7 +240,10 @@
         state: present
       when: ansible_facts.os_family == 'Debian'
       register: postgresql_14_install
-      failed_when: false
+      # ignore_errors, not failed_when: false -- the latter rewrites the
+      # registered result to failed=false, so the `is failed` guard on the
+      # fallback below could never be true and the fallback was dead code.
+      ignore_errors: yes
 
     - name: Ensure default PostgreSQL is installed on Debian/Ubuntu if 14 is unavailable
       apt:
