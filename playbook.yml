@@ -126,7 +126,10 @@
     - name: Debug Homebrew installer output on failure
       debug:
         msg: "Homebrew installer stdout: {{ brew_install_again.stdout }} stderr: {{ brew_install_again.stderr }}"
-      when: brew_install_again is defined and brew_install_again.rc != 0
+      # A skipped task registers {changed: false, skipped: true} with no 'rc'.
+      # ansible-core 2.21 raises on the missing attribute instead of
+      # treating it as falsy, so default it.
+      when: brew_install_again is defined and (brew_install_again.rc | default(0)) != 0
 
     # Installed one at a time: `brew install a b c` aborts the entire batch if
     # any single formula is unavailable on Linux, and this list was captured on
