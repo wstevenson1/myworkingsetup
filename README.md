@@ -5,6 +5,9 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 ## What is included
 
 - `playbook.yml` - main Ansible playbook to install packages and deploy bash startup files
+- `wsl_playbook.yml` - WSL variant: no sudo, no fact gathering, Homebrew as the only
+  package manager. Deploys the same dotfiles; everything needing root is dropped.
+  Run it with `ansible-playbook -i inventory/hosts wsl_playbook.yml` (no `-K`).
 - `inventory/hosts` - localhost inventory for container/VM bootstrap
 - `ansible.cfg` - Ansible configuration for local execution
 - `cli_inventory.txt` - discovered CLI utilities from `/usr/local/bin` and `~/.local/bin`
