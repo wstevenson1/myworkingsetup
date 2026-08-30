@@ -1,0 +1,146 @@
+##########################################
+# STATUS BAR
+set -g default-terminal "screen-256color"
+set -g status-keys vi
+set -g status-interval 1
+#set -g status-attr bright
+
+set -g status-bg colour235          # soft dark grey instead of flat black
+set -g status-fg colour250          # light grey (less eye-strain than pure white)
+
+set -g status-left-length 20
+set -g status-left '#[fg=colour39,bold][#[fg=colour208]#S#[fg=colour39]]#[default]'
+                     # blue brackets, orange session name
+
+set -g status-justify centre
+
+set -g status-right '#[fg=colour114]#H #[fg=colour245][ %m/%d %H:%M:%S ]#[default]'
+                     # green host, muted grey timestamp
+
+setw -g window-status-current-format '#[fg=colour235,bg=colour226,bold] #I:#P#F#W #[default]'
+                     # bright yellow block, dark text -- current window pops
+setw -g window-status-format '#[fg=colour245]#I#F#W#[default]'
+                     # dim grey -- inactive windows recede
+
+# Resolved at deploy time: this Mac has bash under /opt/homebrew, a
+# Linuxbrew host under /home/linuxbrew, and a host without a brewed
+# bash falls back to the system one. A path that does not exist makes
+# every new pane die immediately.
+set -g default-command {{ tmux_default_command }}
+##########################################
+# TERMINAL EMULATOR TITLES
+set-option -g set-titles on
+set-option -g set-titles-string '[#S:#I #H] #W'
+##########################################
+# KEY BINDINGS
+# C-a = prefix
+unbind C-b
+unbind C-o
+set -g prefix C-a
+# C-a = last-window
+unbind l
+unbind m
+bind C-a last-window
+# C-a = new-window
+bind C-c new-window
+# Esc = copy-mode
+unbind [
+bind Escape copy-mode
+# | = horizontal split
+unbind %
+bind | split-window -h
+# - = vertical split
+unbind '"'
+bind "-" split-window -v
+# " = choose-window
+bind '"' choose-window
+# " = choose-window
+bind 'e' choose-session
+# h = display cheatsheet
+bind h run "cat ~/.tmux_cheatsheet"
+# r = tmux renumbering script
+unbind r
+bind r select-layout even-vertical
+# r = respawn after exit or disconnect (zombie)
+bind C-r respawn-pane
+# k = kill after exit or disconnect (zombie)
+bind k kill-pane
+# K = kill after exit or disconnect (zombie)
+bind K kill-window
+##########################################
+# BASIC CONFIG
+# utf8 ability
+# vi Style Editing
+setw -g mode-keys vi
+setw -g xterm-keys on
+# Allow xterm titles in terminal window, terminal scrolling with scrollbar, and setting overrides of C-up, C-Down, C-Left, C-Right
+#set -g terminal-overrides "xterm*:XT:smcup@:rmcup@:kUP5=\eOA:kDN5=\eOB:kLFT5=\eOD:kRIT5=\eOC"
+set -g terminal-overrides "xterm*:kf1=\e[11~:kf2=\e[12~:kf3=\e[13~:kf4=\e[14~:kf5=\e[15~:kf6=\e[17~:kf7=\e[18~:kf8=\e[19~"
+set -g terminal-overrides "screen*:kf1=\e[11~:kf2=\e[12~:kf3=\e[13~:kf4=\e[14~:kf5=\e[15~:kf6=\e[17~:kf7=\e[18~:kf8=\e[19~"
+set -g terminal-overrides "vt100*:kf1=\e[11~:kf2=\e[12~:kf3=\e[13~:kf4=\e[14~:kf5=\e[15~:kf6=\e[17~:kf7=\e[18~:kf8=\e[19~"
+# Start window and pane numbering at 0 instead of 1
+set -g base-index 0
+set -g pane-base-index 0
+setw -g pane-base-index 0
+# Scroll History
+set -g history-limit 30000
+# Set ability to capture on start and restore on exit window data when running an application
+setw -g alternate-screen on
+# Lower escape timing from 500ms to 50ms for quicker response to scroll-buffer access.
+set -s escape-time 50
+set -g set-titles on
+set -g set-titles-string "#T"
+# Off: tmux defaults this to on, and forwarded focus in/out escape sequences
+# can confuse full-screen programs (fzf, etc.) reading raw input from the tty.
+set -g focus-events off
+bind-key -rn C-up select-pane -t :.+
+bind-key -rn C-down select-pane -t :.-
+#bind-key -rn C-right select-pane -R bind-key -rn C-left 	select-pane -L
+bind-key b set-option status
+           bind-key / command-prompt "split-window 'exec man %%'"
+           bind-key S command-prompt "new-window -n %1 'ssh %1'"
+bind-key -n NPage select-pane -t 0
+# Toggle mouse on with ^B m
+bind m \
+  set-option -g mouse on;\
+  display 'Mouse: ON'
+# Toggle mouse off with ^B M
+bind M \
+  set-option -g mouse off;\
+  display 'Mouse: OFF'
+# select pane
+bind -nr NPage select-pane -t :.+
+bind -nr PPage select-pane -t :.-
+bind -n F9  confirm-before kill-pane
+bind -n F10 new-window
+bind -n Home previous-window
+bind -n End next-window
+bind n next-window
+bind N previous-window
+bind-key R source-file ~/.tmux.conf \; display "Config reloaded!"
+bind-key s setw synchronize-panes on
+bind-key S setw synchronize-panes off
+bind a send-prefix
+setw -g aggressive-resize on
+#set-window-option -g window-status-current-bg red
+bind j command-prompt -p "Join pane from:" "join-pane -h -s '%%'"
+bind b break-pane -d
+set -g update-environment "DISPLAY SSH_ASKPASS SSH_AUTH_SOCK SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+bind p paste-buffer # `prefix + p` pastes the latest buffer
+# in copy mode…
+#bind -t vi-copy v begin-selection # `v` begins a selection. (movement keys to select the desired bits)
+#bind -t vi-copy y copy-selection # `y` copies the current selection to one of tmux's "paste buffers"
+#bind -t vi-copy V rectangle-toggle # `V` changes between line- and columnwise selection
+#
+bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi y send-keys -X copy-selection
+bind-key -T copy-mode-vi r send-keys -X rectangle-toggle
+#bind -t vi-copy Y copy-end-of-line # ^1
+#bind + delete-buffer
+#set-option -g lock-command vlock
+setw -g aggressive-resize off
+set -g lock-command vlock
+set -g lock-after-time 80 # Seconds; 0 = never
+bind E lock-session
+set -g default-terminal "screen-256color"
+set -ga terminal-overrides ",xterm-256color:Tc"

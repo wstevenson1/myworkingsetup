@@ -10,7 +10,7 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 - `cli_inventory.txt` - discovered CLI utilities from `/usr/local/bin` and `~/.local/bin`
 - `homebrew_formulae.txt` - Homebrew-installed CLI formulae only
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
-- `files/` - bash config templates and history helper script
+- `files/` - bash config templates, the tmux config, and the history helper script
 
 ## Quick start
 
@@ -40,4 +40,6 @@ Omit it only if the account has passwordless sudo; without it the run fails at
 - The playbook is designed to work on Ubuntu and Fedora family systems.
 - PostgreSQL installation attempts `postgresql-14` on Debian/Ubuntu and falls back to `postgresql` if version 14 is unavailable in the local apt sources.
 - The bash startup configuration is Linux-portable and strips macOS-specific Homebrew/OrbStack/Rancher Desktop paths.
+- `~/.tmux.conf` is deployed from `files/tmux.conf.j2`. Its `default-command` is
+  resolved per host: the Linuxbrew bash when one is installed, `/bin/bash` otherwise.
 - `sshd` will be configured to listen on port `2222` with password authentication enabled.

@@ -16,6 +16,7 @@
       - bash-completion
       - jq
       - sqlite3
+      - tmux
       # ansible's pip module imports 'packaging' as root; a pip --user
       # install of ansible puts it in the user site-packages only.
       - python3-packaging
@@ -27,6 +28,10 @@
       - postgresql-client
       - postgresql-contrib
       - locales
+      # ~/.tmux.conf sets lock-command vlock; without it every lock-session
+      # and every lock-after-time expiry errors out. Debian ships it as its
+      # own package, RedHat folds it into kbd.
+      - vlock
     redhat_extra_packages:
       - openssh-server
       - postgresql-server
@@ -34,6 +39,8 @@
       - postgresql-contrib
       - which
       - man-db
+      # provides vlock; see the Debian list above
+      - kbd
     debian_brew_packages:
       - build-essential
       - procps
@@ -317,6 +324,26 @@
       template:
         src: files/bash_profile.j2
         dest: "{{ target_home }}/.bash_profile"
+        backup: yes
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0644'
+
+    # default-command must name a bash that exists on this host, or every
+    # new pane exits the instant it opens.
+    - name: Look for a brewed bash for tmux to launch
+      stat:
+        path: "{{ homebrew_prefix }}/bin/bash"
+      register: brew_bash
+
+    - name: Select the shell tmux starts panes with
+      set_fact:
+        tmux_default_command: "{{ brew_bash.stat.exists | ternary(homebrew_prefix + '/bin/bash', '/bin/bash') }}"
+
+    - name: Deploy tmux configuration
+      template:
+        src: files/tmux.conf.j2
+        dest: "{{ target_home }}/.tmux.conf"
         backup: yes
         owner: "{{ target_user }}"
         group: "{{ target_user }}"
