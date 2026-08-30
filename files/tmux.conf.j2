@@ -139,8 +139,11 @@ bind-key -T copy-mode-vi r send-keys -X rectangle-toggle
 #bind + delete-buffer
 #set-option -g lock-command vlock
 setw -g aggressive-resize off
-set -g lock-command vlock
-set -g lock-after-time 80 # Seconds; 0 = never
+set -g lock-command {{ tmux_lock_command | default('vlock') }}
+# 0 = never. A host with no locker to install (no root, and Homebrew has no
+# vlock formula) sets this to 0 rather than waking every 80s to run a
+# command that is not there.
+set -g lock-after-time {{ tmux_lock_after_time | default(80) }} # Seconds; 0 = never
 bind E lock-session
 set -g default-terminal "screen-256color"
 set -ga terminal-overrides ",xterm-256color:Tc"

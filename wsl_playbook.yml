@@ -1,0 +1,318 @@
+# WSL variant of playbook.yml.
+#
+# Three constraints separate it from the main play:
+#
+#   * No sudo. Every task here runs as the invoking user and writes only
+#     under $HOME (plus the Homebrew prefix, which the user owns).
+#   * No fact gathering. There is no ansible_facts and no ansible_env, so
+#     the environment is read with lookup('env', ...) -- which runs on the
+#     controller, the same machine under connection: local -- and anything
+#     else is probed with a command task.
+#   * Homebrew is the only package manager available.
+#
+# Dropped from playbook.yml because they cannot be done without root, and
+# Homebrew has no user-space stand-in:
+#
+#   * apt/dnf cache updates and every system package
+#   * the PostgreSQL server and its service (the client comes from libpq)
+#   * sshd on port 2222, its host keys and /var/run/sshd
+#   * installing ansible itself -- it has to be present to run this at all
+#     (`brew install ansible` if it is not)
+#
+# Kept in sync by hand with playbook.yml: the Homebrew formulae shell block
+# and the dotfile tasks below are copies of the ones there, minus become
+# and minus the owner/group that only root can hand out.
+#
+# Run it the same way, without -K:
+#   ansible-playbook -i inventory/hosts wsl_playbook.yml
+
+- name: Bootstrap dev environment on WSL without sudo
+  hosts: local
+  connection: local
+  become: no
+  gather_facts: no
+  vars:
+    target_home: "{{ lookup('env', 'HOME') }}"
+    # The Homebrew equivalents of playbook.yml's common_packages, for the
+    # things apt/dnf would have supplied. Two names differ from the Linux
+    # package names: bash-completion is in homebrew_skip.txt because it
+    # conflicts with bash-completion@2, and postgresql-client is libpq --
+    # nothing here can start a system service, so the server has no
+    # counterpart. There is no vlock formula at all; see the tmux tasks.
+    brew_core_packages:
+      - bash
+      - bash-completion@2
+      - ca-certificates
+      - curl
+      - git
+      - jq
+      - less
+      - libpq
+      - python@3.13
+      - rsync
+      - sqlite
+      - tmux
+      - unzip
+      - wget
+  tasks:
+    # check_mode: no on every probe below. They only read, and without them
+    # a --check run has no brew path, no architecture and no tmux settings
+    # to reason about, so every later task errors on an undefined variable.
+    - name: Locate the brew executable
+      shell: |
+        for b in /home/linuxbrew/.linuxbrew/bin/brew "$HOME/.linuxbrew/bin/brew" \
+                 /usr/local/bin/brew "$HOME/.homebrew/bin/brew"; do
+          [ -x "$b" ] && { echo "$b"; exit 0; }
+        done
+        command -v brew
+      args:
+        executable: /bin/bash
+      register: brew_probe
+      changed_when: false
+      check_mode: no
+      failed_when: brew_probe.rc != 0 or (brew_probe.stdout | trim) == ''
+
+    # Ask brew for its own prefix rather than deriving it from the path:
+    # ~/.linuxbrew/bin/brew is usually a symlink into /home/linuxbrew.
+    - name: Read the Homebrew prefix
+      command: "{{ brew_probe.stdout_lines | first }} --prefix"
+      register: brew_prefix_probe
+      changed_when: false
+      check_mode: no
+
+    - name: Set Homebrew paths
+      set_fact:
+        brew_bin: "{{ brew_probe.stdout_lines | first }}"
+        homebrew_prefix: "{{ brew_prefix_probe.stdout | trim }}"
+
+    # ansible_facts.architecture is what playbook.yml uses to pick the
+    # vendored binary; without facts, ask uname.
+    - name: Read the machine architecture
+      command: uname -m
+      register: uname_m
+      changed_when: false
+      check_mode: no
+
+    - name: Select the vendored recentdirs binary for this architecture
+      set_fact:
+        d_binary: "d-linux-{{ 'arm64' if uname_m.stdout | trim == 'aarch64' else 'amd64' }}"
+
+    # Separate log from the bulk install below, which truncates its own.
+    - name: Ensure the Homebrew stand-ins for the apt/dnf packages are installed
+      shell: |
+        log="$HOME/brew-core-install.log"
+        : > "$log"
+        installed=" $({{ brew_bin }} list --formula 2>/dev/null | tr "\n" " ") "
+        n=0
+        failed=""
+        for f in {{ brew_core_packages | join(' ') }}; do
+          case "$installed" in *" $f "*) continue ;; esac
+          if {{ brew_bin }} install "$f" >>"$log" 2>&1 </dev/null; then
+            n=$((n+1))
+          else
+            failed="$failed $f"
+          fi
+        done
+        echo "INSTALLED:$n"
+        [ -n "$failed" ] && echo "FAILED_CORE:$failed"
+        exit 0
+      args:
+        executable: /bin/bash
+      environment: &brew_env
+        PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+        # Each brew invocation otherwise fires an analytics HTTP call and may
+        # trigger a git auto-update fetch; both dominate runtime over hundreds
+        # of installs.
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_ANALYTICS: "1"
+        HOMEBREW_NO_ENV_HINTS: "1"
+      register: brew_core
+      changed_when: "'INSTALLED:0' not in brew_core.stdout"
+      # These are the base of the environment, not optional extras, so a
+      # failure here stops the play instead of being reported and passed over.
+      failed_when: "'FAILED_CORE:' in (brew_core.stdout | default(''))"
+
+    # Copied from playbook.yml. Installed in chunks for speed, then a failed
+    # chunk is retried member by member so one Linux-unavailable formula does
+    # not lose the other 24. Full output goes to ~/brew-install.log; only the
+    # names that failed come back in stdout.
+    - name: Ensure Homebrew CLI formulae are installed
+      shell: |
+        brew_bin="{{ brew_bin }}"
+        log="$HOME/brew-install.log"
+        : > "$log"
+        failed=""
+        chunk=""
+        n=0
+        skipped=0
+        wanted=0
+        # Ask brew once what is already present, rather than invoking it per
+        # formula only to learn it has nothing to do. Leading/trailing spaces
+        # let the membership test below match whole names only.
+        installed=" $($brew_bin list --formula 2>/dev/null | tr "\n" " ") "
+        # Formulae known to be uninstallable here; see homebrew_skip.txt for
+        # the reason against each one.
+        excluded=0
+        skipfile="{{ playbook_dir }}/homebrew_skip.txt"
+        skiplist=" "
+        if [ -r "$skipfile" ]; then
+          skiplist=" $(sed -e "s/#.*//" "$skipfile" | tr "\n" " ") "
+        fi
+        # </dev/null is required: brew inherits stdin from the while loop,
+        # which is the formulae file, and drains the remaining lines.
+        flush() {
+          [ -z "$chunk" ] && return 0
+          if ! $brew_bin install $chunk >>"$log" 2>&1 </dev/null; then
+            for f in $chunk; do
+              if ! $brew_bin install "$f" >>"$log" 2>&1 </dev/null; then
+                failed="$failed $f"
+              fi
+            done
+          fi
+          chunk=""
+          n=0
+        }
+        while IFS= read -r formula || [ -n "$formula" ]; do
+          formula="$(echo "$formula" | tr -d '[:space:]')"
+          [ -z "$formula" ] && continue
+          case "$formula" in \#*) continue ;; esac
+          case "$installed" in
+            *" $formula "*) skipped=$((skipped+1)); continue ;;
+          esac
+          case "$skiplist" in
+            *" $formula "*) excluded=$((excluded+1)); continue ;;
+          esac
+          wanted=$((wanted+1))
+          chunk="$chunk $formula"
+          n=$((n+1))
+          [ "$n" -ge 25 ] && flush
+        done < "{{ playbook_dir }}/homebrew_formulae.txt"
+        flush
+        echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
+        echo "POURED:$(grep -c "^==> Pouring" "$log")"
+        [ -n "$failed" ] && echo "FAILED_FORMULAE:$failed"
+        exit 0
+      args:
+        chdir: "{{ playbook_dir }}"
+        executable: /bin/bash
+      environment: *brew_env
+      register: brew_formulae
+      changed_when: "'POURED:0' not in brew_formulae.stdout"
+
+    - name: Report Homebrew formulae that failed to install
+      debug:
+        msg: >-
+          {{ brew_formulae.stdout_lines | select('match', '^FAILED_FORMULAE:')
+          | map('regex_replace', '^FAILED_FORMULAE:', '') | join(' ') | trim }}
+          (see ~/brew-install.log)
+      when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
+
+    - name: Create user-local bin directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ target_home }}/.local/bin"
+        - "{{ target_home }}/.programs"
+        - "{{ target_home }}/.logs"
+
+    - name: Copy bash aliases
+      copy:
+        src: files/aliases
+        dest: "{{ target_home }}/.aliases"
+        backup: yes
+        mode: '0644'
+
+    - name: Copy bash history sqlite helper
+      copy:
+        src: files/bash-history-sqlite.sh
+        dest: "{{ target_home }}/.bash-history-sqlite.sh"
+        backup: yes
+        mode: '0755'
+
+    # recentdirs (~/code/recentdirs), installed as `d`. Static musl binaries
+    # are cross-built on the Mac and vendored here; see BUILDING.md. They are
+    # plain Linux ELF, which WSL2 runs natively.
+    - name: Install the recentdirs binary as d
+      copy:
+        src: "files/bin/{{ d_binary }}"
+        dest: "{{ target_home }}/.local/bin/d"
+        mode: '0755'
+        backup: yes
+
+    # copy, not template: the file contains ${#READLINE_LINE}, and Jinja reads
+    # the {# as a comment opener and mangles the result. There are no template
+    # variables in it, so there is nothing to render.
+    - name: Deploy portable bashrc
+      copy:
+        src: files/bashrc
+        dest: "{{ target_home }}/.bashrc"
+        backup: yes
+        mode: '0644'
+
+    - name: Deploy portable bash_profile
+      template:
+        src: files/bash_profile.j2
+        dest: "{{ target_home }}/.bash_profile"
+        backup: yes
+        mode: '0644'
+
+    # default-command must name a bash that exists on this host, or every
+    # new pane exits the instant it opens. brew_core_packages installs bash,
+    # so on a completed run this is the brewed one.
+    - name: Look for a brewed bash for tmux to launch
+      stat:
+        path: "{{ homebrew_prefix }}/bin/bash"
+      register: brew_bash
+      check_mode: no
+
+    # vlock is what the config locks with, and there is no way to get it
+    # here: it is an apt/dnf package and Homebrew has no formula for it.
+    - name: Look for a console locker
+      shell: command -v vlock
+      args:
+        executable: /bin/bash
+      register: vlock_probe
+      changed_when: false
+      check_mode: no
+      failed_when: false
+
+    - name: Select the tmux settings for this host
+      set_fact:
+        tmux_default_command: "{{ brew_bash.stat.exists | ternary(homebrew_prefix + '/bin/bash', '/bin/bash') }}"
+        tmux_lock_command: vlock
+        # Without a locker, leaving lock-after-time at 80 means tmux tries to
+        # run a missing command every time a session idles that long. 0
+        # disables the timer; prefix+E still asks for vlock and still fails,
+        # but only when it is deliberately pressed.
+        tmux_lock_after_time: "{{ 80 if vlock_probe.rc == 0 else 0 }}"
+
+    - name: Warn that tmux session locking is unavailable
+      debug:
+        msg: >-
+          vlock is not installed and Homebrew has no formula for it, so
+          lock-after-time is set to 0 and prefix+E will not lock. Install it
+          with the system package manager (needs root) to restore locking.
+      when: vlock_probe.rc != 0
+
+    - name: Deploy tmux configuration
+      template:
+        src: files/tmux.conf.j2
+        dest: "{{ target_home }}/.tmux.conf"
+        backup: yes
+        mode: '0644'
+
+    - name: Ensure HISTDB exists
+      file:
+        path: "{{ target_home }}/.hist.db"
+        state: touch
+        mode: '0600'
+        access_time: preserve
+        modification_time: preserve
+
+    - name: Ensure bash-preexec helper is installed
+      get_url:
+        url: https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh
+        dest: "{{ target_home }}/.bash-preexec.sh"
+        mode: '0755'

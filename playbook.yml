@@ -336,9 +336,14 @@
         path: "{{ homebrew_prefix }}/bin/bash"
       register: brew_bash
 
-    - name: Select the shell tmux starts panes with
+    - name: Select the tmux settings for this host
       set_fact:
         tmux_default_command: "{{ brew_bash.stat.exists | ternary(homebrew_prefix + '/bin/bash', '/bin/bash') }}"
+        # This play installs vlock (see the package lists above), so the
+        # config's own lock settings stand. wsl_playbook.yml cannot, and
+        # overrides them.
+        tmux_lock_command: vlock
+        tmux_lock_after_time: 80
 
     - name: Deploy tmux configuration
       template:
