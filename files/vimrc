@@ -1,49 +1,41 @@
-" To ignore plugin indent changes, instead use:
-"filetype plugin on
-"
-" Brief help
-" :BundleList          - list configured bundles
-" :BundleInstall(!)    - install (update) bundles
-" :BundleSearch(!) foo - search (or refresh cache first) for foo
-" :BundleClean(!)      - confirm (or auto-approve) removal of unused bundles
-"
-" see :h vundle for more details or wiki for FAQ
-" NOTE: comments after Bundle commands are not allowed.
-" Put your stuff after this line
-
-
-let g:custom_backup_dir = expand('~/.vim_custom_backups')
-
-set backup
-set backupdir=~/.vim/backup
-set dir=~/.vim/temp
-
-set backup
-set directory=.
-"" in .vimrc right after the text: "
-"if has("autocmd") put this:"
-
-" Tell vim to remember certain things when we exit
-" "  '10  :  marks will be remembered for up to 10 previously edited files
-" "  "100 :  will save up to 100 lines for each register
-" "  :20  :  up to 20 lines of command-line history will be remembered
-" "  %    :  saves and restores the buffer list
-" "  n... :  where to save the viminfo files
-set viminfo='10,\"100,:20,%,n~/.viminfo
-
-setlocal tabstop=3
-setlocal softtabstop=3
-setlocal shiftwidth=3
-setlocal textwidth=0
-setlocal smarttab
-setlocal expandtab
-au! BufRead,BufWrite,BufWritePost,BufNewFile *.org
-au BufEnter *.org            call org#SetOrgFileType()
+" ~/.vimrc — deployed from myworkingsetup (files/vimrc)
 
 set nocompatible
 filetype plugin on
 syntax on
 
+" --- Backups & swap ---
+" Dated backups collect in ~/.vim_backups/; the BufWritePre hook encodes the
+" file's full path and a timestamp into the backup extension so successive
+" saves never clobber each other. Swap files go to ~/.vim/temp. Both
+" directories are created by the playbook.
+set backup
+set writebackup
+set backupdir=~/.vim_backups/
+set directory=~/.vim/temp
+au BufWritePre * let &backupext = '%' . substitute(expand("%:p:h"), "/", "%", "g") . "%" . strftime("%Y.%m.%d.%H.%M.%S")
+
+" Remember marks, registers, command-line history and the buffer list between
+" sessions (see :h 'viminfo').
+set viminfo='10,\"100,:20,%,n~/.viminfo
+
+" --- Editing ---
+set tabstop=2
+set softtabstop=2
+set shiftwidth=2
+set expandtab
+set smarttab
+set autoindent
+set smartindent
+set textwidth=0
+set nowrap
+set nohlsearch
+set bg=dark
+
+" --- Bracketed paste ---
+" Enable terminal bracketed-paste reporting and flip 'paste' only for the
+" duration of an actual paste, so indentation and mappings stay live the rest
+" of the time.
 function! WrapForTmux(s)
   if !exists('$TMUX')
     return a:s
@@ -66,57 +58,27 @@ endfunction
 
 inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
 
-" Transparent editing of gpg encrypted files.
+" --- Transparent editing of gpg-encrypted files ---
 augroup encrypted
-au!
-" First make sure nothing is written to ~/.viminfo while editing
-" an encrypted file.
-autocmd BufReadPre,FileReadPre      *.gpg set viminfo=
-" We don't want a swap file, as it writes unencrypted data to disk
-autocmd BufReadPre,FileReadPre      *.gpg set noswapfile
-" Switch to binary mode to read the encrypted file
-autocmd BufReadPre,FileReadPre      *.gpg set bin
-autocmd BufReadPre,FileReadPre      *.gpg let ch_save = &ch|set ch=2
-autocmd BufReadPre,FileReadPre      *.gpg let shsave=&sh
-autocmd BufReadPre,FileReadPre      *.gpg let &sh='sh'
-autocmd BufReadPre,FileReadPre      *.gpg let ch_save = &ch|set ch=2
-"autocmd BufReadPost,FileReadPost    *.gpg '[,']!/usr/bin/gpg --decrypt --default-recipient-self 2> /dev/null
-autocmd BufReadPost,FileReadPost    *.gpg '[,']!gpg --decrypt --default-recipient-self 2> /dev/null
-autocmd BufReadPost,FileReadPost    *.gpg let &sh=shsave
-" Switch to normal mode for editing
-autocmd BufReadPost,FileReadPost    *.gpg set nobin
-autocmd BufReadPost,FileReadPost    *.gpg let &ch = ch_save|unlet ch_save
-autocmd BufReadPost,FileReadPost    *.gpg execute ":doautocmd BufReadPost " . expand("%:r")
-" Convert all text to encrypted text before writing
-autocmd BufWritePre,FileWritePre    *.gpg set bin
-autocmd BufWritePre,FileWritePre    *.gpg let shsave=&sh
-autocmd BufWritePre,FileWritePre    *.gpg let &sh='sh'
-autocmd BufWritePre,FileWritePre    *.gpg '[,']!gpg --armor --encrypt --default-recipient-self 2>/dev/null
-autocmd BufWritePre,FileWritePre    *.gpg let &sh=shsave
-" Undo the encryption so we are back in the normal text, directly
-" after the file has been written.
-autocmd BufWritePost,FileWritePost  *.gpg silent u
-autocmd BufWritePost,FileWritePost  *.gpg set nobin
-
-syntax off
-set nohlsearch
-set t_Co=0
-
-set expandtab  
-set tabstop=2  
-set shiftwidth=2  
-set autoindent  
-set smartindent  
-set bg=dark  
-set nowrap  
-set paste
-
-set backup
-set writebackup
-au BufWritePre * let &backupext = '%' . substitute(expand("%:p:h"), "/" , "%" , "g") . "%" . strftime("%Y.%m.%d.%H.%M.%S")
-au VimLeave * !cp % ~/.vim_backups/$(echo %:p | sed 's/\(.*\/\)\(.*\)/\2\/\1/g' | sed 's/\//\%/g')$(date +\%Y.\%m.\%d.\%H.\%M.\%S).wq
-set backupdir=~/.vim_backups/
-
-set rtp+=/usr/local/opt/fzf
-set bg=dark
-
+  au!
+  " Keep plaintext off disk: no viminfo, no swap file for *.gpg buffers.
+  autocmd BufReadPre,FileReadPre     *.gpg set viminfo=
+  autocmd BufReadPre,FileReadPre     *.gpg set noswapfile
+  autocmd BufReadPre,FileReadPre     *.gpg set bin
+  autocmd BufReadPre,FileReadPre     *.gpg let ch_save = &ch|set ch=2
+  autocmd BufReadPre,FileReadPre     *.gpg let shsave=&sh
+  autocmd BufReadPre,FileReadPre     *.gpg let &sh='sh'
+  " Decrypt on read, re-encrypt on write, using the default gpg identity.
+  autocmd BufReadPost,FileReadPost   *.gpg '[,']!gpg --decrypt --default-recipient-self 2> /dev/null
+  autocmd BufReadPost,FileReadPost   *.gpg let &sh=shsave
+  autocmd BufReadPost,FileReadPost   *.gpg set nobin
+  autocmd BufReadPost,FileReadPost   *.gpg let &ch = ch_save|unlet ch_save
+  autocmd BufReadPost,FileReadPost   *.gpg execute ":doautocmd BufReadPost " . expand("%:r")
+  autocmd BufWritePre,FileWritePre   *.gpg set bin
+  autocmd BufWritePre,FileWritePre   *.gpg let shsave=&sh
+  autocmd BufWritePre,FileWritePre   *.gpg let &sh='sh'
+  autocmd BufWritePre,FileWritePre   *.gpg '[,']!gpg --armor --encrypt --default-recipient-self 2>/dev/null
+  autocmd BufWritePre,FileWritePre   *.gpg let &sh=shsave
+  autocmd BufWritePost,FileWritePost *.gpg silent u
+  autocmd BufWritePost,FileWritePost *.gpg set nobin
+augroup END

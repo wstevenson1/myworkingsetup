@@ -382,8 +382,8 @@
         backup: yes
         mode: '0644'
 
-    # ~/.vimrc turns on 'backup' and points backupdir/dir at these paths;
-    # Vim aborts the write if they are missing.
+    # ~/.vimrc turns on 'backup' and points backupdir/directory at these
+    # paths; Vim aborts the write if they are missing.
     - name: Ensure vim backup directories exist
       file:
         path: "{{ target_home }}/{{ item }}"
@@ -391,9 +391,7 @@
         mode: '0700'
       loop:
         - .vim_backups
-        - .vim/backup
         - .vim/temp
-        - .vim_custom_backups
 
     - name: Deploy vim configuration
       copy:
