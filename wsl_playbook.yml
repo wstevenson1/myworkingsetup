@@ -287,6 +287,15 @@
         backup: yes
         mode: '0644'
 
+    # The rc wraps ssh() to tee every session into ~/.logs; drop that on WSL so
+    # `ssh` is the plain binary again. The lazy line-matcher stops at the first
+    # line that is exactly "}", i.e. the function's own close.
+    - name: Remove the ssh logging wrapper from ~/.bash_aliases
+      replace:
+        path: "{{ target_home }}/.bash_aliases"
+        regexp: '(?m)^ssh\(\) \{\n(?:.*\n)*?^\}\n\n'
+        replace: ''
+
     - name: Look for an existing login-shell dotfile
       stat:
         path: "{{ item }}"
