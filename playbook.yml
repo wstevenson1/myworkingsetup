@@ -376,6 +376,30 @@
         group: "{{ target_user }}"
         mode: '0644'
 
+    # ~/.vimrc turns on 'backup' and points backupdir/dir at these paths;
+    # Vim aborts the write if they are missing.
+    - name: Ensure vim backup directories exist
+      file:
+        path: "{{ target_home }}/{{ item }}"
+        state: directory
+        mode: '0700'
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+      loop:
+        - .vim_backups
+        - .vim/backup
+        - .vim/temp
+        - .vim_custom_backups
+
+    - name: Deploy vim configuration
+      copy:
+        src: files/vimrc
+        dest: "{{ target_home }}/.vimrc"
+        backup: yes
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0644'
+
     - name: Ensure HISTDB exists
       file:
         path: "{{ target_home }}/.hist.db"
