@@ -272,6 +272,7 @@
         group: "{{ target_user }}"
       loop:
         - "{{ target_home }}/.local/bin"
+        - "{{ target_home }}/.local/share/man/man1"
         - "{{ target_home }}/.programs"
         - "{{ target_home }}/.logs"
 
@@ -310,6 +311,27 @@
         group: "{{ target_user }}"
         mode: '0755'
         backup: yes
+
+    # fasd (github.com/clvv/fasd, tag 1.0.1) -- an unmaintained single POSIX
+    # shell script, vendored under files/fasd/ so the play never contacts
+    # GitHub. Installed per-user next to d, for the same reason. The rc's fasd
+    # init block (files/bashrc) activates it once it is on PATH.
+    - name: Install fasd
+      copy:
+        src: files/fasd/fasd
+        dest: "{{ target_home }}/.local/bin/fasd"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0755'
+        backup: yes
+
+    - name: Install the fasd man page
+      copy:
+        src: files/fasd/fasd.1
+        dest: "{{ target_home }}/.local/share/man/man1/fasd.1"
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0644'
 
     - name: Deploy portable bashrc
       copy:

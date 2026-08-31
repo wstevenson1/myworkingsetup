@@ -61,3 +61,25 @@ curl -fsSL -o files/bash-preexec.sh \
 
 Then bump the `tag 0.7.0` note in the `Ensure bash-preexec helper is installed`
 task comment in both `playbook.yml` and `wsl_playbook.yml`.
+
+# Updating the vendored `fasd`
+
+`files/fasd/` holds [clvv/fasd](https://github.com/clvv/fasd) at tag `1.0.1`
+(`fasd` the script, `fasd.1` the man page, `LICENSE`). It is committed rather
+than fetched: fasd is unmaintained, a single POSIX shell script, and the
+playbooks must not depend on reaching GitHub. Both `copy` it to
+`~/.local/bin/fasd` and `~/.local/share/man/man1/fasd.1`; `files/bashrc`
+already has the `fasd --init` block that activates it.
+
+To re-vendor from a different tag:
+
+```sh
+cd ~/code/myworkingsetup
+base=https://raw.githubusercontent.com/clvv/fasd/<tag>
+for f in fasd fasd.1 LICENSE; do curl -fsSL -o "files/fasd/$f" "$base/$f"; done
+chmod 755 files/fasd/fasd && chmod 644 files/fasd/fasd.1 files/fasd/LICENSE
+sh -n files/fasd/fasd   # syntax check
+```
+
+Then bump the `tag 1.0.1` note in the `Install fasd` task comment in both
+playbooks.

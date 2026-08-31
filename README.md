@@ -17,8 +17,8 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 - `homebrew_formulae.txt` - Homebrew-installed CLI formulae only
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
 - `files/` - bash config templates, the tmux config, the history helper script,
-  and a vendored copy of `bash-preexec.sh` (upstream tag 0.7.0) so provisioning
-  never has to reach `raw.githubusercontent.com`
+  and vendored third-party helpers so provisioning never has to reach GitHub:
+  `bash-preexec.sh` (upstream tag 0.7.0) and `fasd/` (clvv/fasd tag 1.0.1)
 
 ## Quick start
 
