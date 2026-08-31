@@ -71,6 +71,7 @@ unset SSH_AGENT_PID
 # PATH
 # ==============================================================================
 export PATH="$PATH:$GOPATH/bin:$HOME/.cargo/bin"
+[ -d "$HOME/.programs" ] && export PATH="$HOME/.programs:$PATH"
 [ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
 
 # Homebrew / Linuxbrew. brew is not on PATH yet, so probe the known install

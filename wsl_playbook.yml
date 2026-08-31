@@ -23,6 +23,12 @@
 # and the dotfile tasks below are copies of the ones there, minus become
 # and minus the owner/group that only root can hand out.
 #
+# One deliberate divergence: on WSL ~/.bashrc is read-only and cannot be
+# replaced. It sources ~/.bash_aliases, so the portable rc that playbook.yml
+# writes to ~/.bashrc is written to ~/.bash_aliases here instead, and
+# ~/.bash_profile is only created when the host has no login-shell dotfile
+# of its own (a managed ~/.profile already chains into ~/.bashrc).
+#
 # Run it the same way, without -K:
 #   ansible-playbook -i inventory/hosts wsl_playbook.yml
 
@@ -241,22 +247,68 @@
         mode: '0755'
         backup: yes
 
+    # WSL: ~/.bashrc is read-only and cannot be replaced. Confirm it hooks
+    # ~/.bash_aliases (where the portable rc lands below); warn but continue
+    # if not, since the file could still be sourced some other way.
+    - name: Check that the read-only ~/.bashrc sources ~/.bash_aliases
+      shell: |
+        rc="$HOME/.bashrc"
+        [ -f "$rc" ] || { echo MISSING; exit 0; }
+        grep -q 'bash_aliases' "$rc" && echo OK || echo NOSOURCE
+      args:
+        executable: /bin/bash
+      register: bashrc_hook_probe
+      changed_when: false
+      check_mode: no
+
+    - name: Warn if the portable rc will not be loaded
+      debug:
+        msg: >-
+          {{ "~/.bashrc is missing" if "MISSING" in bashrc_hook_probe.stdout
+             else "~/.bashrc does not source ~/.bash_aliases" }} --
+          the portable rc deployed to ~/.bash_aliases will not load until
+          `[ -f ~/.bash_aliases ] && . ~/.bash_aliases` is added to a shell
+          startup file.
+      when: "'OK' not in bashrc_hook_probe.stdout"
+
+    # playbook.yml writes this to ~/.bashrc; here it goes to ~/.bash_aliases,
+    # the writable file the read-only ~/.bashrc sources. Nothing in files/bashrc
+    # depends on being named .bashrc except the bash-history-sqlite.sh lookup at
+    # the bottom, which falls back to ~/.bash-history-sqlite.sh (deployed above)
+    # when it is not a sibling of the sourced file.
+    #
     # copy, not template: the file contains ${#READLINE_LINE}, and Jinja reads
     # the {# as a comment opener and mangles the result. There are no template
     # variables in it, so there is nothing to render.
-    - name: Deploy portable bashrc
+    - name: Deploy portable bashrc into ~/.bash_aliases
       copy:
         src: files/bashrc
-        dest: "{{ target_home }}/.bashrc"
+        dest: "{{ target_home }}/.bash_aliases"
         backup: yes
         mode: '0644'
 
-    - name: Deploy portable bash_profile
+    - name: Look for an existing login-shell dotfile
+      stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ target_home }}/.bash_profile"
+        - "{{ target_home }}/.profile"
+      register: login_dotfiles
+      check_mode: no
+
+    # Only create ~/.bash_profile when the host has none of its own. A managed
+    # ~/.profile or ~/.bash_profile is left alone: shadowing it could drop
+    # managed login setup, and the Ubuntu-style ~/.profile already chains into
+    # ~/.bashrc -> ~/.bash_aliases.
+    - name: Deploy portable bash_profile when no login dotfile exists
       template:
         src: files/bash_profile.j2
         dest: "{{ target_home }}/.bash_profile"
         backup: yes
         mode: '0644'
+      when: >-
+        login_dotfiles.results
+        | map(attribute='stat.exists') | select | list | length == 0
 
     # default-command must name a bash that exists on this host, or every
     # new pane exits the instant it opens. brew_core_packages installs bash,
