@@ -16,9 +16,10 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 - `cli_inventory.txt` - discovered CLI utilities from `/usr/local/bin` and `~/.local/bin`
 - `homebrew_formulae.txt` - Homebrew-installed CLI formulae only
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
-- `files/` - bash config templates, the tmux config, the history helper script,
-  and vendored third-party helpers so provisioning never has to reach GitHub:
-  `bash-preexec.sh` (upstream tag 0.7.0) and `fasd/` (clvv/fasd tag 1.0.1)
+- `files/` - bash config templates, the tmux config, the vim config, the
+  history helper script, and vendored third-party helpers so provisioning never
+  has to reach GitHub: `bash-preexec.sh` (upstream tag 0.7.0) and `fasd/`
+  (clvv/fasd tag 1.0.1)
 
 ## Quick start
 
@@ -50,4 +51,8 @@ Omit it only if the account has passwordless sudo; without it the run fails at
 - The bash startup configuration is Linux-portable and strips macOS-specific Homebrew/OrbStack/Rancher Desktop paths.
 - `~/.tmux.conf` is deployed from `files/tmux.conf.j2`. Its `default-command` is
   resolved per host: the Linuxbrew bash when one is installed, `/bin/bash` otherwise.
+- `~/.vimrc` is deployed verbatim from `files/vimrc` (an existing file is backed
+  up first). It enables `backup`/`writebackup`, so the playbook pre-creates the
+  two directories it points at: `~/.vim_backups/` (dated backups) and
+  `~/.vim/temp` (swap files).
 - `sshd` will be configured to listen on port `2222` with password authentication enabled.
