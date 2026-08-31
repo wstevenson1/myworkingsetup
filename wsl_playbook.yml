@@ -363,8 +363,12 @@
         access_time: preserve
         modification_time: preserve
 
+    # Vendored (files/bash-preexec.sh, upstream tag 0.7.0) rather than fetched:
+    # this host resets the connection to raw.githubusercontent.com. To update,
+    # re-download that path from a new tag and commit it.
     - name: Ensure bash-preexec helper is installed
-      get_url:
-        url: https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh
+      copy:
+        src: files/bash-preexec.sh
         dest: "{{ target_home }}/.bash-preexec.sh"
+        backup: yes
         mode: '0755'

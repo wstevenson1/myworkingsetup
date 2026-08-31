@@ -43,3 +43,21 @@ Confirm both are static before committing:
 ```sh
 file files/bin/d-linux-*   # expect "statically linked" for each
 ```
+
+# Updating the vendored `bash-preexec.sh`
+
+`files/bash-preexec.sh` is committed rather than fetched at provision time:
+some hosts reset the connection to `raw.githubusercontent.com`. Both playbooks
+`copy` it to `~/.bash-preexec.sh`.
+
+To move to a newer upstream release, pick the tag from
+<https://github.com/rcaloras/bash-preexec/releases> and re-vendor it:
+
+```sh
+cd ~/code/myworkingsetup
+curl -fsSL -o files/bash-preexec.sh \
+  https://raw.githubusercontent.com/rcaloras/bash-preexec/<tag>/bash-preexec.sh
+```
+
+Then bump the `tag 0.7.0` note in the `Ensure bash-preexec helper is installed`
+task comment in both `playbook.yml` and `wsl_playbook.yml`.

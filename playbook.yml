@@ -364,11 +364,17 @@
         owner: "{{ target_user }}"
         group: "{{ target_user }}"
 
+    # Vendored (files/bash-preexec.sh, upstream tag 0.7.0) rather than fetched:
+    # the provisioned hosts cannot always reach raw.githubusercontent.com. To
+    # update, re-download that path from a new tag and commit it.
     - name: Ensure bash-preexec helper is installed
-      get_url:
-        url: https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh
+      copy:
+        src: files/bash-preexec.sh
         dest: "{{ target_home }}/.bash-preexec.sh"
+        backup: yes
         mode: '0755'
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
 
     - name: Ensure SSH run directory exists
       file:

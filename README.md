@@ -16,7 +16,9 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 - `cli_inventory.txt` - discovered CLI utilities from `/usr/local/bin` and `~/.local/bin`
 - `homebrew_formulae.txt` - Homebrew-installed CLI formulae only
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
-- `files/` - bash config templates, the tmux config, and the history helper script
+- `files/` - bash config templates, the tmux config, the history helper script,
+  and a vendored copy of `bash-preexec.sh` (upstream tag 0.7.0) so provisioning
+  never has to reach `raw.githubusercontent.com`
 
 ## Quick start
 
