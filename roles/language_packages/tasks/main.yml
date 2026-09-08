@@ -81,8 +81,12 @@
 
 # go_packages.txt is `module@version` per line. One entry recorded
 # `@(devel)` -- a pseudo-version from a local, uncommitted build with no real
-# module version to fetch -- and is skipped inline below rather than via a
-# whole extra skip file for a single exclusion.
+# module version to fetch -- and is skipped inline below.
+#
+# go_packages_skip.txt lists module paths (no @version) known to fail the
+# same way on every run -- libraries mis-captured as installable, commands
+# that live in a subpackage of the recorded path, builds that do not work on
+# Linux. Same purpose and format as cargo_skip.txt / python_packages_skip.txt.
 #
 # `go install` has no `--list` of what it has already installed the way
 # cargo does, so "already installed" is approximated the same coarse way the
@@ -100,8 +104,14 @@
     gobin="{{ target_home }}/.go/bin"
     log="$HOME/go-install.log"
     : > "$log"
+    skipfile="{{ playbook_dir }}/go_packages_skip.txt"
+    skiplist=" "
+    if [ -r "$skipfile" ]; then
+      skiplist=" $(sed -e "s/#.*//" "$skipfile" | tr "\n" " ") "
+    fi
     failed=""
     skipped=0
+    excluded=0
     wanted=0
     while IFS= read -r pkg || [ -n "$pkg" ]; do
       pkg="$(echo "$pkg" | tr -d '[:space:]')"
@@ -109,6 +119,7 @@
       case "$pkg" in \#*) continue ;; esac
       case "$pkg" in *"@(devel)") skipped=$((skipped+1)); continue ;; esac
       mod="${pkg%@*}"
+      case "$skiplist" in *" $mod "*) excluded=$((excluded+1)); continue ;; esac
       bin="${mod##*/}"
       if [ -x "$gobin/$bin" ]; then
         skipped=$((skipped+1))
@@ -117,7 +128,7 @@
       wanted=$((wanted+1))
       "$go_bin" install "$pkg" >>"$log" 2>&1 || failed="$failed $pkg"
     done < "{{ playbook_dir }}/go_packages.txt"
-    echo "SKIPPED:$skipped WANTED:$wanted"
+    echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
     [ -n "$failed" ] && echo "FAILED_MODULES:$failed"
     exit 0
   args:

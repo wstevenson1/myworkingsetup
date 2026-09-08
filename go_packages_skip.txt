@@ -1,0 +1,28 @@
+# Module paths in go_packages.txt that are excluded from the `go install`
+# loop in roles/language_packages/. `go_packages.txt` is `pip freeze`-style
+# output captured on the Mac and every entry here fails the same way on every
+# run -- a network fetch plus a build attempt that cannot succeed. Match is on
+# the module path with the @version stripped. One path per line; "#" starts a
+# comment. Reasons captured on CentOS Stream 10 / aarch64, Go from Homebrew.
+
+# --- not a main package (library mis-captured as installable) ---
+golang.design/x/clipboard
+gopkg.in/kothar/go-backblaze.v0
+
+# --- module found, but does not contain a package at that path ---
+# The recorded path points at the module root; the command lives in a
+# subpackage (e.g. delve's is .../cmd/dlv, staticcheck's is .../cmd/staticcheck)
+# or the repo was retagged/moved upstream. Left as excluded rather than guessing
+# the new path.
+github.com/go-delve/delve
+honnef.co/go/tools
+github.com/gvcgo/asciinema
+github.com/rodmcnew/largestfiles
+github.com/sammcj/bkmk
+
+# --- build fails on Linux ---
+# asdf 0.19: "build constraints exclude all Go files".
+github.com/asdf-vm/asdf
+# xo/usql sqlite3 driver: "undefined: sqlite3.Error / sqlite3.ErrNo" (CGO /
+# build-tag mismatch).
+github.com/xo/usql
