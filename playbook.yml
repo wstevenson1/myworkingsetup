@@ -27,6 +27,8 @@
       # Python.h etc., so pip can build C-extension packages that ship no wheel
       # (see roles/language_packages/ and python_packages_skip.txt).
       - python3-dev
+      # oniguruma.h, for the onigurumacffi wheel (pulled in by ansible-navigator).
+      - libonig-dev
       - openssh-server
       - postgresql-client
       - postgresql-contrib
@@ -45,6 +47,8 @@
       # Python.h etc., so pip can build C-extension packages that ship no wheel
       # (see roles/language_packages/ and python_packages_skip.txt).
       - python3-devel
+      # oniguruma.h, for the onigurumacffi wheel (pulled in by ansible-navigator).
+      - oniguruma-devel
       # provides vlock; see the Debian list above
       - kbd
     debian_brew_packages:
@@ -75,6 +79,16 @@
     - name: Ensure dnf cache is up to date
       dnf:
         update_cache: yes
+      when: ansible_facts.os_family == 'RedHat'
+
+    # oniguruma-devel (in redhat_extra_packages) ships only in CRB, which is
+    # disabled by default on CentOS Stream / Rocky / Alma. Enabling it is
+    # idempotent (changed_when: false); failed_when: false so this is a no-op
+    # on Fedora, which has no separate CRB repo.
+    - name: Enable the CRB repository on RedHat
+      command: dnf config-manager --set-enabled crb
+      changed_when: false
+      failed_when: false
       when: ansible_facts.os_family == 'RedHat'
 
     - name: Ensure Linuxbrew build dependencies are installed

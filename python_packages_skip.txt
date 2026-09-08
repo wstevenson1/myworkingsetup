@@ -172,6 +172,11 @@ btcmd
 geeknote
 whaaaaat
 
+# datatable 1.1.0 has no wheels for Linux/aarch64 and its bundled C/C++ sdist
+# does not build against a current toolchain. The project is effectively
+# unmaintained; no reasonable in-play fix.
+datatable
+
 # PyQt5 from sdist needs a full Qt5 build toolchain (qmake, sip) that this play
 # does not provide, and PyQt5-Qt5 / PyQt5-sip publish no aarch64-Linux wheels.
 # Install python3-qt5 from the system package manager instead if it is needed.
