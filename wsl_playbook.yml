@@ -213,12 +213,6 @@
           (see ~/brew-install.log)
       when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
-    # See roles/language_packages/tasks/main.yml. No lp_become_user: this
-    # whole play already runs as the invoking user, unlike playbook.yml.
-    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
-      include_role:
-        name: language_packages
-
     - name: Create user-local bin directories
       file:
         path: "{{ item }}"
@@ -435,3 +429,12 @@
         dest: "{{ target_home }}/.bash-preexec.sh"
         backup: yes
         mode: '0755'
+
+    # Deliberately last, matching playbook.yml: the cargo/go/pip source builds
+    # are the slowest and most failure-prone step, so everything else is in
+    # place before it runs and an interruption here still leaves a usable
+    # environment. No lp_become_user -- this whole play already runs as the
+    # invoking user.
+    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
+      include_role:
+        name: language_packages

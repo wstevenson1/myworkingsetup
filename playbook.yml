@@ -261,16 +261,6 @@
           (see ~/brew-install.log)
       when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
-    # See roles/language_packages/tasks/main.yml. Homebrew's rust/go formulae
-    # (see homebrew_formulae.txt) provide cargo/go by this point in the play.
-    # lp_become_user runs cargo/go as the target user instead of root, the
-    # same way the Homebrew tasks above use become_user.
-    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
-      include_role:
-        name: language_packages
-      vars:
-        lp_become_user: "{{ target_user }}"
-
     - name: Try install PostgreSQL 14 on Debian/Ubuntu
       apt:
         name: postgresql-14
@@ -529,6 +519,19 @@
       when:
         - ansible_facts.os_family in ['Debian', 'RedHat']
         - ansible_present.rc != 0
+
+    # Deliberately last: the cargo/go/pip source builds are the slowest and
+    # most failure-prone step, so everything else (packages, dotfiles, the zsh
+    # and starship roles, sshd, PostgreSQL) is in place before it runs and an
+    # interruption here leaves a usable environment. It only needs the early
+    # facts and the Homebrew rust/go/python formulae, so position does not
+    # matter for correctness. lp_become_user runs cargo/go as the target user
+    # instead of root, the same way the Homebrew tasks do.
+    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
+      include_role:
+        name: language_packages
+      vars:
+        lp_become_user: "{{ target_user }}"
 
   handlers:
     - name: restart sshd
