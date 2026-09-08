@@ -213,6 +213,12 @@
           (see ~/brew-install.log)
       when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
+    # See roles/language_packages/tasks/main.yml. No lp_become_user: this
+    # whole play already runs as the invoking user, unlike playbook.yml.
+    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
+      include_role:
+        name: language_packages
+
     - name: Create user-local bin directories
       file:
         path: "{{ item }}"

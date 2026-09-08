@@ -241,6 +241,16 @@
           (see ~/brew-install.log)
       when: "'FAILED_FORMULAE:' in (brew_formulae.stdout | default(''))"
 
+    # See roles/language_packages/tasks/main.yml. Homebrew's rust/go formulae
+    # (see homebrew_formulae.txt) provide cargo/go by this point in the play.
+    # lp_become_user runs cargo/go as the target user instead of root, the
+    # same way the Homebrew tasks above use become_user.
+    - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
+      include_role:
+        name: language_packages
+      vars:
+        lp_become_user: "{{ target_user }}"
+
     - name: Try install PostgreSQL 14 on Debian/Ubuntu
       apt:
         name: postgresql-14
