@@ -83,12 +83,21 @@
 # `@(devel)` -- a pseudo-version from a local, uncommitted build with no real
 # module version to fetch -- and is skipped inline below rather than via a
 # whole extra skip file for a single exclusion.
+#
+# `go install` has no `--list` of what it has already installed the way
+# cargo does, so "already installed" is approximated the same coarse way the
+# cargo/pip/brew checks are: `go install` names its binary after the last
+# path segment of the module, so a matching, executable file already in
+# GOPATH/bin is treated as already installed and not rebuilt. Like those
+# other checks, this only looks at presence, not whether the installed
+# binary matches the pinned version.
 - name: Ensure go-installed binaries are present
   become: "{{ lp_become_user is defined }}"
   become_user: "{{ lp_become_user | default(omit) }}"
   shell: |
     set -o pipefail
     go_bin="{{ homebrew_prefix }}/bin/go"
+    gobin="{{ target_home }}/.go/bin"
     log="$HOME/go-install.log"
     : > "$log"
     failed=""
@@ -99,6 +108,12 @@
       [ -z "$pkg" ] && continue
       case "$pkg" in \#*) continue ;; esac
       case "$pkg" in *"@(devel)") skipped=$((skipped+1)); continue ;; esac
+      mod="${pkg%@*}"
+      bin="${mod##*/}"
+      if [ -x "$gobin/$bin" ]; then
+        skipped=$((skipped+1))
+        continue
+      fi
       wanted=$((wanted+1))
       "$go_bin" install "$pkg" >>"$log" 2>&1 || failed="$failed $pkg"
     done < "{{ playbook_dir }}/go_packages.txt"
