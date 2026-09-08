@@ -5,10 +5,12 @@
 
 # --- no reproducible source ---
 # `cargo install --list` recorded the path to a local checkout that only
-# exists on the Mac these were captured from; no crates.io or git source.
+# exists on the Mac these were captured from; no crates.io or git source
+# ("could not find <name> in registry `crates-io`").
 dusage
 dwatch
 valerter
+replaySh
 
 # --- macOS only ---
 # Fails on Linux with "macpow supports macOS targets only" after a few
@@ -26,3 +28,6 @@ mise
 # `palette` (a dependency) fails to compile, ~34 errors, aborting eza. There
 # is an `eza` Homebrew formula if it is wanted on the target.
 eza
+# ouch v0.8.2 fails to compile against Rust 1.98 ("mismatched types", "the `?`
+# operator ..."). Drop this entry if the target's toolchain moves forward.
+ouch

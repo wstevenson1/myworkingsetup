@@ -165,3 +165,16 @@ pyobjc-framework-Virtualization
 pyobjc-framework-Vision
 pyobjc-framework-WebKit
 rubicon-objc
+
+# Pinned versions that do not exist on PyPI (`pip freeze` captured a local or
+# long-yanked build): "Could not find a version that satisfies the requirement".
+btcmd
+geeknote
+whaaaaat
+
+# PyQt5 from sdist needs a full Qt5 build toolchain (qmake, sip) that this play
+# does not provide, and PyQt5-Qt5 / PyQt5-sip publish no aarch64-Linux wheels.
+# Install python3-qt5 from the system package manager instead if it is needed.
+PyQt5
+PyQt5-Qt5
+PyQt5-sip
