@@ -12,6 +12,14 @@
 # Every task expects these to already be set by the caller (both playbooks
 # set them the same way): `homebrew_prefix` (Homebrew provides cargo/go/pip
 # via the "rust"/"go" formulae in homebrew_formulae.txt) and `target_home`.
+#
+# Tags, for skipping the slow builds on a rerun:
+#   --skip-tags language_packages   the whole role (tag is on the include)
+#   --skip-tags rust                just the cargo crates
+#   --skip-tags go                  just the go binaries
+#   --skip-tags python              just the pip packages
+#   --skip-tags rust,go             any combination
+# The temp-dir task carries all three so it still runs for whichever remain.
 
 # cargo and `go install` both build under $TMPDIR. On hosts where /tmp is a
 # small tmpfs a large build (terraform pulled gigabytes) fails with "no space
@@ -24,6 +32,7 @@
     path: "{{ target_home }}/.cache/lang-build"
     state: directory
     mode: '0755'
+  tags: [rust, go, python]
 
 # rust_packages.txt is `cargo install --list` output captured on the Mac: a
 # header line per crate (`name vVERSION [(source)]:`) followed by the
@@ -125,6 +134,7 @@
     TMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_cargo_crates
   changed_when: "'WANTED:0' not in lp_cargo_crates.stdout"
+  tags: [rust]
 
 - name: Report crates that failed to install
   debug:
@@ -133,6 +143,7 @@
       | map('regex_replace', '^FAILED_CRATES:', '') | join(' ') | trim }}
       (see ~/cargo-install.log)
   when: "'FAILED_CRATES:' in (lp_cargo_crates.stdout | default(''))"
+  tags: [rust]
 
 # go_packages.txt is `module@version` per line. One entry recorded
 # `@(devel)` -- a pseudo-version from a local, uncommitted build with no real
@@ -204,6 +215,7 @@
     GOTMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_go_modules
   changed_when: "'WANTED:0' not in lp_go_modules.stdout"
+  tags: [go]
 
 - name: Report Go modules that failed to install
   debug:
@@ -212,6 +224,7 @@
       | map('regex_replace', '^FAILED_MODULES:', '') | join(' ') | trim }}
       (see ~/go-install.log)
   when: "'FAILED_MODULES:' in (lp_go_modules.stdout | default(''))"
+  tags: [go]
 
 # python_packages.txt is `pip freeze` output (name==version per line) from
 # the Mac. Installed one at a time, not as a single `pip install -r` batch:
@@ -266,6 +279,7 @@
     TMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_pip_packages
   changed_when: "'WANTED:0' not in lp_pip_packages.stdout"
+  tags: [python]
 
 - name: Report Python packages that failed to install
   debug:
@@ -274,3 +288,4 @@
       | map('regex_replace', '^FAILED_PACKAGES:', '') | join(' ') | trim }}
       (see ~/pip-install.log)
   when: "'FAILED_PACKAGES:' in (lp_pip_packages.stdout | default(''))"
+  tags: [python]

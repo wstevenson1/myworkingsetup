@@ -435,6 +435,10 @@
     # place before it runs and an interruption here still leaves a usable
     # environment. No lp_become_user -- this whole play already runs as the
     # invoking user.
+    #
+    # Tags: skip the whole step with --skip-tags language_packages, or just one
+    # language with --skip-tags rust / go / python.
     - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
       include_role:
         name: language_packages
+      tags: [language_packages]

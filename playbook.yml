@@ -527,11 +527,15 @@
     # facts and the Homebrew rust/go/python formulae, so position does not
     # matter for correctness. lp_become_user runs cargo/go as the target user
     # instead of root, the same way the Homebrew tasks do.
+    # Tags: skip the whole step with --skip-tags language_packages, or just one
+    # language with --skip-tags rust / go / python (those tags are on the tasks
+    # inside the role).
     - name: Install cargo/go/pip packages from rust_packages.txt, go_packages.txt and python_packages.txt
       include_role:
         name: language_packages
       vars:
         lp_become_user: "{{ target_user }}"
+      tags: [language_packages]
 
   handlers:
     - name: restart sshd
