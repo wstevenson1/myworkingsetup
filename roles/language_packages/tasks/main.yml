@@ -15,12 +15,20 @@
 
 # rust_packages.txt is `cargo install --list` output captured on the Mac: a
 # header line per crate (`name vVERSION [(source)]:`) followed by the
-# binaries it installs, indented -- only the header line is read here. Plain
-# crates.io crates install by name; crates whose source is a git URL are
-# installed from that URL's default branch (the recorded commit is an
-# abbreviated hash, not reliably checkoutable); crates recorded against a
-# local path (see cargo_skip.txt) have no reproducible source and are
-# excluded rather than retried every run.
+# binaries it installs, indented. Plain crates.io crates install by name;
+# crates whose source is a git URL are installed from that URL's default
+# branch (the recorded commit is an abbreviated hash, not reliably
+# checkoutable); crates recorded against a local path (see cargo_skip.txt)
+# have no reproducible source and are excluded rather than retried every run.
+#
+# A crate is skipped when EITHER `cargo install --list` already names it OR
+# every binary listed under its header already resolves on PATH -- so a tool
+# provided by Homebrew, a distro package, or an earlier cargo run (whose
+# ~/.cargo/bin is prepended to PATH below) is not rebuilt. The indented
+# binary names matter here because several differ from the crate name
+# (lolcate-rs -> lolcate, tealdeer -> tldr, pueue -> pueue + pueued). Like
+# the go/pip/brew checks this is presence-only: a newer pinned version of an
+# already-present tool is not upgraded.
 - name: Ensure cargo-installed crates are present
   become: "{{ lp_become_user is defined }}"
   become_user: "{{ lp_become_user | default(omit) }}"
@@ -29,6 +37,8 @@
     cargo_bin="{{ homebrew_prefix }}/bin/cargo"
     log="$HOME/cargo-install.log"
     : > "$log"
+    # cargo drops binaries in ~/.cargo/bin; make sure the PATH probe sees them.
+    export PATH="$HOME/.cargo/bin:$PATH"
     installed=" $($cargo_bin install --list 2>/dev/null | grep -E '^[^ ]' | awk '{print $1}' | tr "\n" " ") "
     skipfile="{{ playbook_dir }}/cargo_skip.txt"
     skiplist=" "
@@ -39,17 +49,30 @@
     skipped=0
     excluded=0
     wanted=0
-    while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in
-        ""|" "*|"	"*) continue ;;
-      esac
-      name="${line%% *}"
-      case "$skiplist" in *" $name "*) excluded=$((excluded+1)); continue ;; esac
-      case "$installed" in *" $name "*) skipped=$((skipped+1)); continue ;; esac
+
+    # Decide on one crate: $1 = header line, $2 = space-separated binary names
+    # recorded under it in rust_packages.txt.
+    consider_crate() {
+      hdr="$1"
+      bins="$2"
+      [ -z "$hdr" ] && return 0
+      name="${hdr%% *}"
+      case "$skiplist" in *" $name "*) excluded=$((excluded+1)); return 0 ;; esac
+      case "$installed" in *" $name "*) skipped=$((skipped+1)); return 0 ;; esac
+      if [ -n "$bins" ]; then
+        have_all=1
+        for b in $bins; do
+          command -v "$b" >/dev/null 2>&1 || { have_all=0; break; }
+        done
+        if [ "$have_all" -eq 1 ]; then
+          skipped=$((skipped+1))
+          return 0
+        fi
+      fi
       wanted=$((wanted+1))
-      case "$line" in
+      case "$hdr" in
         *"(http"*)
-          src="${line#*\(}"
+          src="${hdr#*\(}"
           src="${src%%\)*}"
           url="${src%%#*}"
           "$cargo_bin" install --git "$url" "$name" >>"$log" 2>&1 || failed="$failed $name"
@@ -58,7 +81,26 @@
           "$cargo_bin" install "$name" >>"$log" 2>&1 || failed="$failed $name"
           ;;
       esac
+    }
+
+    cur_hdr=""
+    cur_bins=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        "") continue ;;
+        "#"*) continue ;;
+        [[:space:]]*)
+          b="$(echo "$line" | tr -d '[:space:]')"
+          [ -n "$b" ] && cur_bins="$cur_bins $b"
+          continue
+          ;;
+      esac
+      consider_crate "$cur_hdr" "$cur_bins"
+      cur_hdr="$line"
+      cur_bins=""
     done < "{{ playbook_dir }}/rust_packages.txt"
+    consider_crate "$cur_hdr" "$cur_bins"
+
     echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
     [ -n "$failed" ] && echo "FAILED_CRATES:$failed"
     exit 0
