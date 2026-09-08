@@ -1,0 +1,66 @@
+# Deploys the portable zsh environment. Included by playbook.yml and
+# wsl_playbook.yml so the logic lives in one place, the same way
+# roles/language_packages/ is shared.
+#
+# Callers set `shell_owner` to the target user when the play runs with
+# become: yes (playbook.yml) so the files land owned by that user instead of
+# root; wsl_playbook.yml leaves it unset because the whole play already runs
+# as the invoking user. `target_home` is set the same way by both playbooks.
+#
+# Login shell is NOT changed here -- this only writes config files. Run `zsh`
+# or `chsh -s "$(command -v zsh)"` yourself to switch.
+#
+# Files deployed:
+#   ~/.zshrc                                portable rc (this repo's rewrite)
+#   ~/.zsh-history-sqlite.zsh               SQLite history hooks, zsh port
+#   ~/.logr.zsh                             logger(1) wrapper, zsh port
+#   ~/.zsh/zsh-autosuggestions/             vendored plugin, upstream v0.7.1
+
+- name: Ensure the ~/.zsh vendored-plugin directory exists
+  file:
+    path: "{{ target_home }}/.zsh"
+    state: directory
+    mode: '0755'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"
+
+- name: Deploy portable zshrc
+  copy:
+    src: zshrc
+    dest: "{{ target_home }}/.zshrc"
+    backup: yes
+    mode: '0644'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"
+
+- name: Deploy the zsh SQLite history helper
+  copy:
+    src: zsh-history-sqlite.zsh
+    dest: "{{ target_home }}/.zsh-history-sqlite.zsh"
+    backup: yes
+    mode: '0644'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"
+
+- name: Deploy the zsh logr helper
+  copy:
+    src: logr.zsh
+    dest: "{{ target_home }}/.logr.zsh"
+    backup: yes
+    mode: '0644'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"
+
+# Vendored so provisioning never has to reach GitHub, the same reason
+# files/fasd/ and files/bash-preexec.sh are vendored. Upstream:
+# github.com/zsh-users/zsh-autosuggestions tag v0.7.1 (the combined
+# zsh-autosuggestions.zsh dist file plus its LICENSE). To update, re-copy
+# both from a newer tag.
+- name: Install vendored zsh-autosuggestions
+  copy:
+    src: zsh-autosuggestions/
+    dest: "{{ target_home }}/.zsh/zsh-autosuggestions/"
+    backup: yes
+    mode: '0644'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"

@@ -23,11 +23,22 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
   (a local path cargo recorded) or only build on macOS (pyobjc).
 - `roles/language_packages/` - shared cargo/go/pip install tasks, included by
   both playbooks so that logic exists in one place
+- `roles/zsh/` - shared tasks that deploy the portable zsh environment
+  (`~/.zshrc`, the SQLite-history and `logr` zsh ports, and the vendored
+  `zsh-autosuggestions` v0.7.1). `~/.zshrc` is a hand-portable rewrite of the
+  macOS `~/.zshrc`, the same way `files/bashrc` is of `~/.bashrc`. It does not
+  require Oh My Zsh (an existing `~/.oh-my-zsh` is sourced if present) and does
+  not change the login shell.
+- `roles/starship/` - shared task that deploys `~/.config/starship.toml`. The
+  `starship` binary comes from `homebrew_formulae.txt`; `roles/zsh/`'s rc runs
+  `starship init zsh`, so the prompt is wired up for zsh only (`files/bashrc`
+  keeps its own `PS1`).
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
 - `files/` - bash config templates, the tmux config, the vim config, the
   history helper script, and vendored third-party helpers so provisioning never
   has to reach GitHub: `bash-preexec.sh` (upstream tag 0.7.0) and `fasd/`
-  (clvv/fasd tag 1.0.1)
+  (clvv/fasd tag 1.0.1). The zsh counterparts live under `roles/zsh/files/`
+  (including vendored `zsh-autosuggestions` v0.7.1).
 
 ## Quick start
 
@@ -63,4 +74,13 @@ Omit it only if the account has passwordless sudo; without it the run fails at
   up first). It enables `backup`/`writebackup`, so the playbook pre-creates the
   two directories it points at: `~/.vim_backups/` (dated backups) and
   `~/.vim/temp` (swap files).
+- `~/.zshrc` is deployed from `roles/zsh/files/zshrc` (an existing file is
+  backed up first). It mirrors `files/bashrc` feature for feature in zsh idiom,
+  reuses the same `~/.hist.db` SQLite history database, and every tool init is
+  guarded. No `~/.zprofile`/`~/.zshenv` is written - zsh reads `~/.zshrc` for
+  login shells too and the rc builds `PATH` itself. The login shell is left
+  unchanged; run `chsh -s "$(command -v zsh)"` yourself to switch.
+- `~/.config/starship.toml` is deployed from `roles/starship/files/`. Starship
+  is initialized only by `~/.zshrc`; a plain `bash` session keeps the
+  `[\t][\u@\h:\w]$` prompt from `files/bashrc`.
 - `sshd` will be configured to listen on port `2222` with password authentication enabled.

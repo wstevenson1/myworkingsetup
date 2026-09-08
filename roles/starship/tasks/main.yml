@@ -1,0 +1,26 @@
+# Deploys the Starship prompt configuration. Included by playbook.yml and
+# wsl_playbook.yml. The `starship` binary itself is installed from
+# homebrew_formulae.txt by both playbooks; this role only places the config.
+#
+# roles/zsh/'s rc runs `starship init zsh`; files/bashrc is left as-is and
+# keeps its own PS1, so Starship is wired up for zsh only.
+#
+# `shell_owner` and `target_home` are passed by the caller exactly as for
+# roles/zsh/ (see that role's header).
+
+- name: Ensure ~/.config exists
+  file:
+    path: "{{ target_home }}/.config"
+    state: directory
+    mode: '0755'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"
+
+- name: Deploy the Starship configuration
+  copy:
+    src: starship.toml
+    dest: "{{ target_home }}/.config/starship.toml"
+    backup: yes
+    mode: '0644'
+    owner: "{{ shell_owner | default(omit) }}"
+    group: "{{ shell_owner | default(omit) }}"

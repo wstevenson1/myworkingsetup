@@ -343,6 +343,18 @@
         login_dotfiles.results
         | map(attribute='stat.exists') | select | list | length == 0
 
+    # Shared with playbook.yml. No shell_owner: this whole play already runs as
+    # the invoking user, so the roles' `| default(omit)` leaves ownership
+    # alone. Unlike ~/.bashrc, WSL ships no ~/.zshrc, so ~/.zshrc is written
+    # directly with no read-only-file workaround.
+    - name: Deploy the portable zsh environment
+      include_role:
+        name: zsh
+
+    - name: Deploy the Starship prompt configuration
+      include_role:
+        name: starship
+
     # default-command must name a bash that exists on this host, or every
     # new pane exits the instant it opens. brew_core_packages installs bash,
     # so on a completed run this is the brewed one.

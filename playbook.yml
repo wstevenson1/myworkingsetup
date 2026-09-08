@@ -361,6 +361,22 @@
         group: "{{ target_user }}"
         mode: '0644'
 
+    # roles/zsh/ and roles/starship/ are shared with wsl_playbook.yml the same
+    # way roles/language_packages/ is. shell_owner makes the deployed files
+    # land owned by the invoking user rather than root, since this play runs
+    # with become: yes.
+    - name: Deploy the portable zsh environment
+      include_role:
+        name: zsh
+      vars:
+        shell_owner: "{{ target_user }}"
+
+    - name: Deploy the Starship prompt configuration
+      include_role:
+        name: starship
+      vars:
+        shell_owner: "{{ target_user }}"
+
     # default-command must name a bash that exists on this host, or every
     # new pane exits the instant it opens.
     - name: Look for a brewed bash for tmux to launch
