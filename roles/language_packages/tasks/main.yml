@@ -1,0 +1,186 @@
+# Shared by playbook.yml and wsl_playbook.yml so the cargo/go/pip install
+# logic exists in exactly one place instead of being hand-copied between the
+# two, the way the Homebrew formulae block still is.
+#
+# Callers set `lp_become_user` to run cargo/go as a non-root user (needed
+# from playbook.yml, which runs the whole play with become: yes); leave it
+# undefined when the play already runs as the right user, as wsl_playbook.yml
+# does. pip is never given become_user here: it inherits whichever user the
+# calling play already runs as -- root for playbook.yml, the invoking user
+# for wsl_playbook.yml -- which is what both want.
+#
+# Every task expects these to already be set by the caller (both playbooks
+# set them the same way): `homebrew_prefix` (Homebrew provides cargo/go/pip
+# via the "rust"/"go" formulae in homebrew_formulae.txt) and `target_home`.
+
+# rust_packages.txt is `cargo install --list` output captured on the Mac: a
+# header line per crate (`name vVERSION [(source)]:`) followed by the
+# binaries it installs, indented -- only the header line is read here. Plain
+# crates.io crates install by name; crates whose source is a git URL are
+# installed from that URL's default branch (the recorded commit is an
+# abbreviated hash, not reliably checkoutable); crates recorded against a
+# local path (see cargo_skip.txt) have no reproducible source and are
+# excluded rather than retried every run.
+- name: Ensure cargo-installed crates are present
+  become: "{{ lp_become_user is defined }}"
+  become_user: "{{ lp_become_user | default(omit) }}"
+  shell: |
+    set -o pipefail
+    cargo_bin="{{ homebrew_prefix }}/bin/cargo"
+    log="$HOME/cargo-install.log"
+    : > "$log"
+    installed=" $($cargo_bin install --list 2>/dev/null | grep -E '^[^ ]' | awk '{print $1}' | tr "\n" " ") "
+    skipfile="{{ playbook_dir }}/cargo_skip.txt"
+    skiplist=" "
+    if [ -r "$skipfile" ]; then
+      skiplist=" $(sed -e "s/#.*//" "$skipfile" | tr "\n" " ") "
+    fi
+    failed=""
+    skipped=0
+    excluded=0
+    wanted=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        ""|" "*|"	"*) continue ;;
+      esac
+      name="${line%% *}"
+      case "$skiplist" in *" $name "*) excluded=$((excluded+1)); continue ;; esac
+      case "$installed" in *" $name "*) skipped=$((skipped+1)); continue ;; esac
+      wanted=$((wanted+1))
+      case "$line" in
+        *"(http"*)
+          src="${line#*\(}"
+          src="${src%%\)*}"
+          url="${src%%#*}"
+          "$cargo_bin" install --git "$url" "$name" >>"$log" 2>&1 || failed="$failed $name"
+          ;;
+        *)
+          "$cargo_bin" install "$name" >>"$log" 2>&1 || failed="$failed $name"
+          ;;
+      esac
+    done < "{{ playbook_dir }}/rust_packages.txt"
+    echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
+    [ -n "$failed" ] && echo "FAILED_CRATES:$failed"
+    exit 0
+  args:
+    chdir: "{{ playbook_dir }}"
+    executable: /bin/bash
+  environment:
+    HOME: "{{ target_home }}"
+    PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+  register: lp_cargo_crates
+  changed_when: "'WANTED:0' not in lp_cargo_crates.stdout"
+
+- name: Report crates that failed to install
+  debug:
+    msg: >-
+      {{ lp_cargo_crates.stdout_lines | select('match', '^FAILED_CRATES:')
+      | map('regex_replace', '^FAILED_CRATES:', '') | join(' ') | trim }}
+      (see ~/cargo-install.log)
+  when: "'FAILED_CRATES:' in (lp_cargo_crates.stdout | default(''))"
+
+# go_packages.txt is `module@version` per line. One entry recorded
+# `@(devel)` -- a pseudo-version from a local, uncommitted build with no real
+# module version to fetch -- and is skipped inline below rather than via a
+# whole extra skip file for a single exclusion.
+- name: Ensure go-installed binaries are present
+  become: "{{ lp_become_user is defined }}"
+  become_user: "{{ lp_become_user | default(omit) }}"
+  shell: |
+    set -o pipefail
+    go_bin="{{ homebrew_prefix }}/bin/go"
+    log="$HOME/go-install.log"
+    : > "$log"
+    failed=""
+    skipped=0
+    wanted=0
+    while IFS= read -r pkg || [ -n "$pkg" ]; do
+      pkg="$(echo "$pkg" | tr -d '[:space:]')"
+      [ -z "$pkg" ] && continue
+      case "$pkg" in \#*) continue ;; esac
+      case "$pkg" in *"@(devel)") skipped=$((skipped+1)); continue ;; esac
+      wanted=$((wanted+1))
+      "$go_bin" install "$pkg" >>"$log" 2>&1 || failed="$failed $pkg"
+    done < "{{ playbook_dir }}/go_packages.txt"
+    echo "SKIPPED:$skipped WANTED:$wanted"
+    [ -n "$failed" ] && echo "FAILED_MODULES:$failed"
+    exit 0
+  args:
+    chdir: "{{ playbook_dir }}"
+    executable: /bin/bash
+  environment:
+    HOME: "{{ target_home }}"
+    # GOPATH matches files/bashrc, so `go install` lands binaries in
+    # ~/.go/bin, which is already on PATH there.
+    GOPATH: "{{ target_home }}/.go"
+    PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+  register: lp_go_modules
+  changed_when: "'WANTED:0' not in lp_go_modules.stdout"
+
+- name: Report Go modules that failed to install
+  debug:
+    msg: >-
+      {{ lp_go_modules.stdout_lines | select('match', '^FAILED_MODULES:')
+      | map('regex_replace', '^FAILED_MODULES:', '') | join(' ') | trim }}
+      (see ~/go-install.log)
+  when: "'FAILED_MODULES:' in (lp_go_modules.stdout | default(''))"
+
+# python_packages.txt is `pip freeze` output (name==version per line) from
+# the Mac. Installed one at a time, not as a single `pip install -r` batch:
+# pip's resolver aborts the whole batch on the first unsatisfiable pin, and
+# most of the ~560 lines here are unrelated packages that just happen to have
+# been on that machine. python_packages_skip.txt excludes pyobjc and its
+# per-framework wheels, which only build against Apple's own frameworks.
+# pip_bin tries /usr/bin/pip3 (the system pip playbook.yml's other pip task
+# uses) first, falling back to whatever pip3 is on PATH -- Homebrew's
+# python@3.13 on wsl_playbook.yml, which has no /usr/bin/pip3 at all.
+- name: Ensure pip-installed Python packages are present
+  shell: |
+    set -o pipefail
+    pip_bin="/usr/bin/pip3"
+    command -v "$pip_bin" >/dev/null 2>&1 || pip_bin="$(command -v pip3)"
+    log="$HOME/pip-install.log"
+    : > "$log"
+    norm() { tr '[:upper:]_.' '[:lower:]--'; }
+    installed=" $($pip_bin list --format=freeze 2>/dev/null | cut -d= -f1 | norm | tr "\n" " ") "
+    skipfile="{{ playbook_dir }}/python_packages_skip.txt"
+    skiplist=" "
+    if [ -r "$skipfile" ]; then
+      skiplist=" $(sed -e "s/#.*//" "$skipfile" | norm | tr "\n" " ") "
+    fi
+    failed=""
+    skipped=0
+    excluded=0
+    wanted=0
+    while IFS= read -r spec || [ -n "$spec" ]; do
+      spec="$(echo "$spec" | tr -d '[:space:]')"
+      [ -z "$spec" ] && continue
+      case "$spec" in \#*) continue ;; esac
+      name="$(echo "$spec" | sed -E 's/==.*//' | norm)"
+      case "$skiplist" in *" $name "*) excluded=$((excluded+1)); continue ;; esac
+      case "$installed" in *" $name "*) skipped=$((skipped+1)); continue ;; esac
+      wanted=$((wanted+1))
+      "$pip_bin" install "$spec" >>"$log" 2>&1 || failed="$failed $spec"
+    done < "{{ playbook_dir }}/python_packages.txt"
+    echo "SKIPPED:$skipped EXCLUDED:$excluded WANTED:$wanted"
+    [ -n "$failed" ] && echo "FAILED_PACKAGES:$failed"
+    exit 0
+  args:
+    chdir: "{{ playbook_dir }}"
+    executable: /bin/bash
+  # No HOME override, unlike cargo/go above: this task has no become_user, so
+  # it always runs as whatever user the calling play already is (root for
+  # playbook.yml, the invoking user for wsl_playbook.yml) and $HOME is
+  # already correct for that user.
+  environment:
+    PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+  register: lp_pip_packages
+  changed_when: "'WANTED:0' not in lp_pip_packages.stdout"
+
+- name: Report Python packages that failed to install
+  debug:
+    msg: >-
+      {{ lp_pip_packages.stdout_lines | select('match', '^FAILED_PACKAGES:')
+      | map('regex_replace', '^FAILED_PACKAGES:', '') | join(' ') | trim }}
+      (see ~/pip-install.log)
+  when: "'FAILED_PACKAGES:' in (lp_pip_packages.stdout | default(''))"

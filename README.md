@@ -15,6 +15,14 @@ This repository contains a generic Ansible-based bootstrap for a Linux developme
 - `ansible.cfg` - Ansible configuration for local execution
 - `cli_inventory.txt` - discovered CLI utilities from `/usr/local/bin` and `~/.local/bin`
 - `homebrew_formulae.txt` - Homebrew-installed CLI formulae only
+- `rust_packages.txt`, `go_packages.txt`, `python_packages.txt` - `cargo install
+  --list`, `module@version`, and `pip freeze` dumps captured on the Mac; both
+  playbooks install these via `roles/language_packages/` once Homebrew has
+  provided cargo/go/pip. `cargo_skip.txt` and `python_packages_skip.txt`
+  document packages excluded because they have no reproducible source
+  (a local path cargo recorded) or only build on macOS (pyobjc).
+- `roles/language_packages/` - shared cargo/go/pip install tasks, included by
+  both playbooks so that logic exists in one place
 - `Dockerfile` and `docker-compose.yml` - run the playbook inside a container
 - `files/` - bash config templates, the tmux config, the vim config, the
   history helper script, and vendored third-party helpers so provisioning never

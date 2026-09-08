@@ -1,0 +1,7 @@
+# Crates in rust_packages.txt with no reproducible source. `cargo install
+# --list` recorded the path to a local checkout that only exists on the Mac
+# these were captured from, and there is no crates.io or git source to
+# install instead.
+dusage
+dwatch
+valerter
