@@ -18,6 +18,13 @@ right_format = "$time"
 [username]
 # always show the current user, not just over SSH / as root
 show_always = true
+format = "[$user]($style)"
+
+[hostname]
+# always show the hostname, rendered as @<hostname> right after the username
+ssh_only = false
+format = "[@$hostname]($style) "
+style = "green"
 
 [time]
 disabled = false
