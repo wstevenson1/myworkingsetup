@@ -5,20 +5,34 @@
 # the module path with the @version stripped. One path per line; "#" starts a
 # comment. Reasons captured on CentOS Stream 10 / aarch64, Go from Homebrew.
 
-# --- not a main package (library mis-captured as installable) ---
+# --- not a main package ("package <path> is not a main package") ---
+# The recorded path is the module root; the command lives in a subpackage
+# (gotests -> /gotests, go-bindata -> /go-bindata, nfpm -> /v2/cmd/nfpm,
+# goplay -> /cmd/goplay, xlsxsql -> /cmd/xlsxsql, clipy -> /cmd/clipy) or the
+# entry is a library that was never a command. Excluded rather than guessing
+# the subpackage.
 golang.design/x/clipboard
 gopkg.in/kothar/go-backblaze.v0
+github.com/cweill/gotests
+github.com/go-bindata/go-bindata
+github.com/goreleaser/nfpm/v2
+github.com/haya14busa/goplay
+github.com/noborus/xlsxsql
+github.com/szktkfm/clipy
 
 # --- module found, but does not contain a package at that path ---
-# The recorded path points at the module root; the command lives in a
-# subpackage (e.g. delve's is .../cmd/dlv, staticcheck's is .../cmd/staticcheck)
-# or the repo was retagged/moved upstream. Left as excluded rather than guessing
-# the new path.
+# Same shape as above -- command is in a subpackage (delve's is .../cmd/dlv,
+# staticcheck's is honnef.co/go/tools/cmd/staticcheck) or the repo was
+# retagged/moved upstream.
 github.com/go-delve/delve
 honnef.co/go/tools
 github.com/gvcgo/asciinema
 github.com/rodmcnew/largestfiles
 github.com/sammcj/bkmk
+
+# --- source gone ---
+# "invalid version: git ls-remote ... exit status 128" -- repo removed.
+github.com/lillesvin/gut
 
 # --- build fails on Linux ---
 # asdf 0.19: "build constraints exclude all Go files".
@@ -26,3 +40,7 @@ github.com/asdf-vm/asdf
 # xo/usql sqlite3 driver: "undefined: sqlite3.Error / sqlite3.ErrNo" (CGO /
 # build-tag mismatch).
 github.com/xo/usql
+# HashiCorp does not support `go install` for terraform (it builds from a
+# checkout with its own flags); the attempt pulls gigabytes and here ran the
+# /tmp tmpfs out of space.
+github.com/hashicorp/terraform

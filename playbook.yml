@@ -24,6 +24,9 @@
     debian_extra_packages:
       - python3-apt
       - python3-venv
+      # Python.h etc., so pip can build C-extension packages that ship no wheel
+      # (see roles/language_packages/ and python_packages_skip.txt).
+      - python3-dev
       - openssh-server
       - postgresql-client
       - postgresql-contrib
@@ -39,6 +42,9 @@
       - postgresql-contrib
       - which
       - man-db
+      # Python.h etc., so pip can build C-extension packages that ship no wheel
+      # (see roles/language_packages/ and python_packages_skip.txt).
+      - python3-devel
       # provides vlock; see the Debian list above
       - kbd
     debian_brew_packages:

@@ -13,6 +13,18 @@
 # set them the same way): `homebrew_prefix` (Homebrew provides cargo/go/pip
 # via the "rust"/"go" formulae in homebrew_formulae.txt) and `target_home`.
 
+# cargo and `go install` both build under $TMPDIR. On hosts where /tmp is a
+# small tmpfs a large build (terraform pulled gigabytes) fails with "no space
+# left on device", so point both at a directory under $HOME instead -- same
+# filesystem as the caches they populate, and it survives across runs.
+- name: Ensure the language-build temp directory exists
+  become: "{{ lp_become_user is defined }}"
+  become_user: "{{ lp_become_user | default(omit) }}"
+  file:
+    path: "{{ target_home }}/.cache/lang-build"
+    state: directory
+    mode: '0755'
+
 # rust_packages.txt is `cargo install --list` output captured on the Mac: a
 # header line per crate (`name vVERSION [(source)]:`) followed by the
 # binaries it installs, indented. Plain crates.io crates install by name;
@@ -110,6 +122,7 @@
   environment:
     HOME: "{{ target_home }}"
     PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+    TMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_cargo_crates
   changed_when: "'WANTED:0' not in lp_cargo_crates.stdout"
 
@@ -131,12 +144,14 @@
 # Linux. Same purpose and format as cargo_skip.txt / python_packages_skip.txt.
 #
 # `go install` has no `--list` of what it has already installed the way
-# cargo does, so "already installed" is approximated the same coarse way the
-# cargo/pip/brew checks are: `go install` names its binary after the last
-# path segment of the module, so a matching, executable file already in
-# GOPATH/bin is treated as already installed and not rebuilt. Like those
-# other checks, this only looks at presence, not whether the installed
-# binary matches the pinned version.
+# cargo does, so "already installed" is approximated: `go install` names its
+# binary after the last path segment of the module, so if a binary by that
+# name already resolves on PATH -- ~/.go/bin (prepended below), a Homebrew or
+# distro copy, an earlier run -- the module is treated as present and not
+# rebuilt. Like the other checks this is presence-only: a newer pinned
+# version is not upgraded. The name guess is imperfect (a command can live in
+# a subpackage, e.g. delve's binary is dlv); those cases are handled by
+# go_packages_skip.txt instead.
 - name: Ensure go-installed binaries are present
   become: "{{ lp_become_user is defined }}"
   become_user: "{{ lp_become_user | default(omit) }}"
@@ -146,6 +161,9 @@
     gobin="{{ target_home }}/.go/bin"
     log="$HOME/go-install.log"
     : > "$log"
+    # ~/.go/bin holds what earlier runs installed; put it on PATH so the probe
+    # below sees it alongside brew / distro copies.
+    export PATH="$gobin:$PATH"
     skipfile="{{ playbook_dir }}/go_packages_skip.txt"
     skiplist=" "
     if [ -r "$skipfile" ]; then
@@ -163,7 +181,7 @@
       mod="${pkg%@*}"
       case "$skiplist" in *" $mod "*) excluded=$((excluded+1)); continue ;; esac
       bin="${mod##*/}"
-      if [ -x "$gobin/$bin" ]; then
+      if command -v "$bin" >/dev/null 2>&1; then
         skipped=$((skipped+1))
         continue
       fi
@@ -182,6 +200,8 @@
     # ~/.go/bin, which is already on PATH there.
     GOPATH: "{{ target_home }}/.go"
     PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+    # keep build scratch off a possibly-small /tmp tmpfs (see the temp-dir task)
+    GOTMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_go_modules
   changed_when: "'WANTED:0' not in lp_go_modules.stdout"
 
@@ -242,6 +262,8 @@
   # already correct for that user.
   environment:
     PATH: "{{ homebrew_prefix }}/bin:{{ lookup('env', 'PATH') }}"
+    # pip builds wheels under $TMPDIR too; keep them off a small /tmp tmpfs.
+    TMPDIR: "{{ target_home }}/.cache/lang-build"
   register: lp_pip_packages
   changed_when: "'WANTED:0' not in lp_pip_packages.stdout"
 
