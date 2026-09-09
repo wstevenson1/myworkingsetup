@@ -30,6 +30,23 @@ plugins=(git fzf zsh-autosuggestions)
 [ -r "$ZSH/oh-my-zsh.sh" ] && source "$ZSH/oh-my-zsh.sh"
 
 # ==============================================================================
+# Completion system + menu selection
+# ==============================================================================
+# OMZ runs compinit and enables menu selection itself. When OMZ is not
+# installed, do it here so `ip <TAB>`, `git <TAB>`, etc. produce a completion
+# menu whose entries are navigable with the arrow keys:
+#   * compinit           -- load the completion functions (incl. _ip)
+#   * zsh/complist        -- the module that draws the interactive menu
+#   * menu select         -- highlight + arrow-key navigation, not a plain list
+# $+parameters[_comps] is set once compinit has run, so this never double-runs.
+if ! (( $+parameters[_comps] )); then
+    autoload -Uz compinit
+    compinit -d "$HOME/.zcompdump-${ZSH_VERSION}"
+fi
+zmodload zsh/complist
+zstyle ':completion:*' menu select
+
+# ==============================================================================
 # Environment
 # ==============================================================================
 # TERM: let the terminal / multiplexer announce itself; only supply a value
