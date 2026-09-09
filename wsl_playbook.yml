@@ -341,9 +341,15 @@
     # the invoking user, so the roles' `| default(omit)` leaves ownership
     # alone. Unlike ~/.bashrc, WSL ships no ~/.zshrc, so ~/.zshrc is written
     # directly with no read-only-file workaround.
+    # `apply` propagates the tag to every task inside the role, so
+    # `ansible-playbook wsl_playbook.yml --tags zsh` re-deploys just the zsh
+    # config; the tag on the include itself lets --skip-tags zsh skip it.
     - name: Deploy the portable zsh environment
       include_role:
         name: zsh
+        apply:
+          tags: [zsh]
+      tags: [zsh]
 
     - name: Deploy the Starship prompt configuration
       include_role:

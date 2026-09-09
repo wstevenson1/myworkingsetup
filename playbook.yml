@@ -375,11 +375,17 @@
     # way roles/language_packages/ is. shell_owner makes the deployed files
     # land owned by the invoking user rather than root, since this play runs
     # with become: yes.
+    # `apply` propagates the tag to every task inside the role, so
+    # `ansible-playbook playbook.yml --tags zsh` re-deploys just the zsh
+    # config; the tag on the include itself lets --skip-tags zsh skip it.
     - name: Deploy the portable zsh environment
       include_role:
         name: zsh
+        apply:
+          tags: [zsh]
       vars:
         shell_owner: "{{ target_user }}"
+      tags: [zsh]
 
     - name: Deploy the Starship prompt configuration
       include_role:
