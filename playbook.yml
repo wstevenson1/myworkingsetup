@@ -102,9 +102,14 @@
         name: "{{ common_packages + (debian_extra_packages if ansible_facts.os_family == 'Debian' else redhat_extra_packages) }}"
         state: present
 
+    # tags: always -- the target_user / target_home chain below feeds nearly
+    # every file-deploying task, including the zsh and starship roles. Without
+    # `always` a tag-limited run (e.g. --tags zsh) skips these and every
+    # "{{ target_home }}" reference is undefined.
     - name: Set Homebrew user
       set_fact:
         homebrew_user: "{{ ansible_env.SUDO_USER | default(ansible_env.USER) }}"
+      tags: [always]
 
     # Homebrew on Linux installs to /home/linuxbrew/.linuxbrew no matter what
     # prefix it is asked for, and only ships bottles for that path. Pointing
@@ -121,11 +126,13 @@
       getent:
         database: passwd
         key: "{{ homebrew_user }}"
+      tags: [always]
 
     - name: Set target user and home
       set_fact:
         target_user: "{{ homebrew_user }}"
         target_home: "{{ getent_passwd[homebrew_user][4] }}"
+      tags: [always]
 
     - name: Ensure Homebrew prefix directory exists
       file:
