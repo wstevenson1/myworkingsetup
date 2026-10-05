@@ -358,6 +358,17 @@ __favs_widget() {
 zle -N __favs_widget
 bindkey '^F' __favs_widget
 
+# Option+Right / Option+Left: word movement. iTerm2 with Option=Esc+ sends
+# ESC ESC [ C/D, or ESC ESC O C/D inside tmux (application cursor-key mode).
+bindkey '^[[1;3C' forward-word
+bindkey '^[[1;3D' backward-word
+bindkey '^[f' forward-word
+bindkey '^[b' backward-word
+bindkey '^[^[[C' forward-word
+bindkey '^[^[[D' backward-word
+bindkey '^[^[OC' forward-word
+bindkey '^[^[OD' backward-word
+
 # ==============================================================================
 # recentdirs (~/code/recentdirs). The playbook installs the binary per-user
 # into ~/.local/bin; this Mac has it in /usr/local/bin. Resolve it once --
