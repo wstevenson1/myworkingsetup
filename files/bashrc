@@ -373,6 +373,17 @@ _favs_widget() {
 }
 bind -x '"\C-f": _favs_widget'
 
+# Option+Right / Option+Left: word movement. iTerm2 with Option=Esc+ sends
+# ESC ESC [ C/D, or ESC ESC O C/D inside tmux (application cursor-key mode).
+bind '"\e[1;3C": forward-word'
+bind '"\e[1;3D": backward-word'
+bind '"\ef": forward-word'
+bind '"\eb": backward-word'
+bind '"\e\e[C": forward-word'
+bind '"\e\e[D": backward-word'
+bind '"\e\eOC": forward-word'
+bind '"\e\eOD": backward-word'
+
 command -v mise >/dev/null 2>&1 && eval "$(mise activate bash)"
 
 # mise's activation above redefines cd with its own plain builtin-only
